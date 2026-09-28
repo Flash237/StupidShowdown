@@ -1,7 +1,8 @@
 node_modules
 dist
-StupidShowdownClient/node_modules
-StupidShowdownClient/dist
+# Exclude the submodule dir from the build context entirely —
+# the Dockerfile clones it fresh via git inside the builder stage.
+StupidShowdownClient
 .git
 .idea
 .vscode
