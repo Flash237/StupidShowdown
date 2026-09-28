@@ -88,9 +88,6 @@ async function serveActionProxy(req, res) {
 
 http.createServer((req, res) => {
 	console.log(`[REQ] ${req.method} ${req.url}`);
-	if (req.url === '/' || req.url === '') {
-		req.url = '/index.html';
-	}
 	if (req.url.startsWith('/actionproxy?')) {
 		serveActionProxy(req, res).catch(err => {
 			console.error(err);
@@ -102,6 +99,18 @@ http.createServer((req, res) => {
 	const isConfig = req.url.startsWith('/config/');
 	const server = isConfig ? configServer : clientServer;
 	if (isConfig) req.url = req.url.slice('/config'.length);
+
+	if (req.url === '/' || req.url === '' || req.url === '/index.html') {
+		clientServer.serveFile('index.html', 200, {}, req, res).then(result => {
+			console.log(`[RES] ${result?.status} /index.html`);
+		}).catch(err => {
+			console.error(err);
+			res.writeHead(500);
+			res.end('Internal Server Error');
+		});
+		return;
+	}
+
 	server.serve(req, res).then(result => {
 		console.log(`[RES] ${result?.status} ${req.url}`);
 	}).catch(err => {
