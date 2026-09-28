@@ -41,8 +41,10 @@ COPY --from=builder /app/sim ./sim
 COPY --from=builder /app/lib ./lib
 COPY --from=builder /app/pokemon-showdown ./pokemon-showdown
 COPY --from=builder /app/serve_client.js ./serve_client.js
-COPY --from=builder /app/StupidShowdownClient/play.pokemonshowdown.com ./StupidShowdownClient/play.pokemonshowdown.com
-COPY --from=builder /app/StupidShowdownClient/config ./StupidShowdownClient/config
+COPY --from=builder /app/StupidShowdownClient ./StupidShowdownClient
+
+# Ensure required logs directory structure exists
+RUN mkdir -p /app/logs/repl
 
 # Environment variables
 ENV PORT=10000
