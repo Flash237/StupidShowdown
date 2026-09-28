@@ -87,6 +87,9 @@ async function serveActionProxy(req, res) {
 
 http.createServer((req, res) => {
 	console.log(`[REQ] ${req.method} ${req.url}`);
+	if (req.url === '/' || req.url === '') {
+		req.url = '/index.html';
+	}
 	if (req.url.startsWith('/actionproxy?')) {
 		serveActionProxy(req, res).catch(err => {
 			console.error(err);
