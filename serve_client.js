@@ -103,6 +103,12 @@ http.createServer((req, res) => {
 	const server = isConfig ? configServer : clientServer;
 	if (isConfig) req.url = req.url.slice('/config'.length);
 
+	// The build script rewrites /play.pokemonshowdown.com/... → /stupidshowdown.onrender.com/...
+	// Strip our hostname prefix so the static server can resolve files from clientRoot
+	if (req.url.startsWith('/stupidshowdown.onrender.com/')) {
+		req.url = req.url.slice('/stupidshowdown.onrender.com'.length);
+	}
+
 	if (req.url === '/' || req.url === '' || req.url === '/index.html') {
 		// Build script outputs the processed HTML to caches/index-old.html
 		clientServer.serveFile('/caches/index-old.html', 200, {}, req, res).then(result => {
