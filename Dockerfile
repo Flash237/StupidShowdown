@@ -1,25 +1,21 @@
 # Multi-stage Dockerfile for Render deployment
 FROM node:20-slim AS builder
 
-# Install git for cloning the client submodule
-RUN apt-get update && apt-get install -y git ca-certificates --no-install-recommends && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
 # Copy root package files and install server dependencies
 COPY package*.json ./
 RUN npm ci
 
-# Clone the Pokémon Showdown client at the pinned commit used by this repo
-RUN git clone --depth=1 https://github.com/smogon/pokemon-showdown-client.git StupidShowdownClient
-
-# Install client dependencies
+# Copy client package files and install client dependencies
+# (StupidShowdownClient is already synced by Render via git submodules)
+COPY StupidShowdownClient/package*.json ./StupidShowdownClient/
 RUN cd StupidShowdownClient && npm ci
 
-# Copy full server source (excludes StupidShowdownClient via .dockerignore-style — but we keep the dir)
+# Copy full source (includes synced submodule files via build context)
 COPY . .
 
-# Build server TypeScript and run client build script
+# Build server TypeScript and compile client assets
 RUN npm run build
 RUN cd StupidShowdownClient && node build
 
