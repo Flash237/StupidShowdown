@@ -23,25 +23,8 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Install runtime tools if needed (e.g. static server runner / process manager)
-COPY package*.json ./
-RUN npm ci --omit=dev
-
-COPY StupidShowdownClient/package*.json ./StupidShowdownClient/
-RUN cd StupidShowdownClient && npm ci --omit=dev
-
-# Copy compiled build artifacts and necessary runtime source files
-COPY --from=builder /app/build ./build
-COPY --from=builder /app/tools ./tools
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/data ./data
-COPY --from=builder /app/config ./config
-COPY --from=builder /app/server ./server
-COPY --from=builder /app/sim ./sim
-COPY --from=builder /app/lib ./lib
-COPY --from=builder /app/pokemon-showdown ./pokemon-showdown
-COPY --from=builder /app/serve_client.js ./serve_client.js
-COPY --from=builder /app/StupidShowdownClient ./StupidShowdownClient
+# Copy built server artifacts and client source/build files from builder
+COPY --from=builder /app /app
 
 # Ensure required logs directory structure exists
 RUN mkdir -p /app/logs/repl
