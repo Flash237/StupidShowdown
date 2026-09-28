@@ -1,6 +1,7 @@
 const path = require('node:path');
 const http = require('node:http');
 const https = require('node:https');
+const net = require('node:net');
 const fs = require('node:fs');
 const { StaticServer } = require('./dist/lib/static-server');
 
@@ -15,6 +16,54 @@ console.log(`[CLIENT-SERVER] index (caches/index-old.html) exists: ${fs.existsSy
 const clientServer = new StaticServer(clientRoot, { cacheTime: 0 });
 const configServer = new StaticServer(configRoot, { cacheTime: 0 });
 const port = process.env.PORT || 8080;
+
+// The game server (started by the Docker CMD on port 8000) speaks SockJS on
+// the /showdown path prefix. The browser reaches it through this same public
+// port, so tunnel everything under /showdown to it - both plain HTTP (SockJS
+// info/long-polling/xhr-streaming requests) and WebSocket upgrades.
+const GAME_HOST = '127.0.0.1';
+const GAME_PORT = Number(process.env.GAMEPORT) || 8000;
+
+function proxyGameHttp(req, res) {
+	const headers = { ...req.headers };
+	delete headers.connection; // hop-by-hop; let Node manage keep-alive
+	const proxied = http.request({
+		host: GAME_HOST,
+		port: GAME_PORT,
+		path: req.url,
+		method: req.method,
+		headers,
+	}, proxyRes => {
+		res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+		proxyRes.pipe(res); // stream: SockJS xhr-streaming responses never "end" early
+	});
+	proxied.on('error', err => {
+		console.error(`[GAMESRV-ERROR] ${req.url}: ${err.message}`);
+		if (!res.headersSent) res.writeHead(502);
+		res.end('Game server unavailable');
+	});
+	req.pipe(proxied);
+}
+
+function proxyGameUpgrade(req, clientSocket, head) {
+	const upstream = net.connect(GAME_PORT, GAME_HOST);
+	upstream.on('connect', () => {
+		// forward the raw request verbatim (method, URL, headers incl. Upgrade)
+		const lines = [`${req.method} ${req.url} HTTP/1.1`];
+		for (let i = 0; i < req.rawHeaders.length; i += 2) {
+			lines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
+		}
+		upstream.write(lines.join('\r\n') + '\r\n\r\n');
+		if (head.length) upstream.write(head);
+		clientSocket.pipe(upstream);
+		upstream.pipe(clientSocket);
+	});
+	upstream.on('error', err => {
+		console.error(`[GAMESRV-WS-ERROR] ${req.url}: ${err.message}`);
+		clientSocket.destroy();
+	});
+	clientSocket.on('error', () => upstream.destroy());
+}
 
 // The client repo intentionally excludes the big binary assets (sprites/,
 // audio/) for size reasons — see StupidShowdownClient/README.md. Anything we
@@ -126,7 +175,7 @@ async function serveActionProxy(req, res) {
 	res.end(body);
 }
 
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
 	console.log(`[REQ] ${req.method} ${req.url}`);
 	if (req.url.startsWith('/actionproxy?')) {
 		serveActionProxy(req, res).catch(err => {
@@ -135,6 +184,13 @@ http.createServer((req, res) => {
 			res.end('Internal Server Error');
 		});
 		return;
+	}
+
+	// Game server tunnel: SockJS (and the raw websocket fallback) both live
+	// under /showdown on the game server started by the Docker CMD.
+	if (req.url.startsWith('/showdown/')) {
+		console.log(`[GAMESRV] ${req.method} ${req.url}`);
+		return void proxyGameHttp(req, res);
 	}
 
 	const isConfig = req.url.startsWith('/config/');
@@ -180,5 +236,16 @@ http.createServer((req, res) => {
 		res.end('Internal Server Error');
 	});
 }).listen(port);
+
+// WebSocket transport pass-through (must be on the same server/port; the
+// game server's own SockJS endpoint answers the handshake).
+server.on('upgrade', (req, socket, head) => {
+	if (!req.url || !req.url.startsWith('/showdown/')) {
+		socket.destroy();
+		return;
+	}
+	console.log(`[GAMESRV-WS] ${req.url}`);
+	proxyGameUpgrade(req, socket, head);
+});
 
 console.log(`Client serving at http://localhost:${port}`);
