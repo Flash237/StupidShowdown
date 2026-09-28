@@ -1,5 +1,6 @@
 const path = require('node:path');
 const http = require('node:http');
+const https = require('node:https');
 const fs = require('node:fs');
 const { StaticServer } = require('./dist/lib/static-server');
 
@@ -14,6 +15,42 @@ console.log(`[CLIENT-SERVER] index (caches/index-old.html) exists: ${fs.existsSy
 const clientServer = new StaticServer(clientRoot, { cacheTime: 0 });
 const configServer = new StaticServer(configRoot, { cacheTime: 0 });
 const port = process.env.PORT || 8080;
+
+// The client repo intentionally excludes the big binary assets (sprites/,
+// audio/) for size reasons — see StupidShowdownClient/README.md. Anything we
+// don't have locally under those paths gets transparently proxied from
+// Pokémon Showdown's live server instead, so the browser sees a complete
+// client on our own origin. Custom StupidShowdown mons will 404 upstream too
+// and keep the client's built-in placeholder until custom art is added.
+const UPSTREAM_ASSET_HOST = 'play.pokemonshowdown.com';
+const UPSTREAM_PREFIXES = ['/sprites/', '/audio/'];
+function serveUpstream(req, res) {
+	const upstream = https.get({
+		hostname: UPSTREAM_ASSET_HOST,
+		path: req.url,
+		headers: {
+			// forward the browser's cache validators so upstream 304s still work
+			'if-none-match': req.headers['if-none-match'] || '',
+			'if-modified-since': req.headers['if-modified-since'] || '',
+			'accept-encoding': req.headers['accept-encoding'] || 'identity',
+			'accept': req.headers['accept'] || '*/*',
+			'user-agent': 'StupidShowdown-asset-proxy/1.0',
+		},
+	}, upstreamRes => {
+		const headers = { ...upstreamRes.headers };
+		// don't forward upstream's CSP/frame headers if any
+		delete headers['content-security-policy'];
+		delete headers['x-frame-options'];
+		res.writeHead(upstreamRes.statusCode || 502, headers);
+		upstreamRes.pipe(res);
+	});
+	upstream.on('error', err => {
+		console.error(`[PROXY-ERROR] ${req.url}: ${err.message}`);
+		if (!res.headersSent) res.writeHead(502);
+		res.end('Upstream asset fetch failed');
+	});
+	req.on('error', () => upstream.destroy());
+}
 
 // config/testclient-key.js holds a live session token for whoever owns this machine.
 // It must never be handed to anyone connecting over the LAN/internet - only requests
@@ -99,6 +136,7 @@ http.createServer((req, res) => {
 		});
 		return;
 	}
+
 	const isConfig = req.url.startsWith('/config/');
 	const server = isConfig ? configServer : clientServer;
 	if (isConfig) req.url = req.url.slice('/config'.length);
@@ -107,6 +145,19 @@ http.createServer((req, res) => {
 	// Strip our hostname prefix so the static server can resolve files from clientRoot
 	if (req.url.startsWith('/stupidshowdown.onrender.com/')) {
 		req.url = req.url.slice('/stupidshowdown.onrender.com'.length);
+	}
+
+	// Missing sprites/audio: transparently proxy from Pokémon Showdown's live
+	// server (see UPSTREAM_PREFIXES above for the rationale).
+	if (UPSTREAM_PREFIXES.some(prefix => req.url.startsWith(prefix))) {
+		let haveLocal = false;
+		try {
+			haveLocal = fs.statSync(path.join(clientRoot, req.url)).isFile();
+		} catch {}
+		if (!haveLocal) {
+			console.log(`[PROXY] ${req.url} -> ${UPSTREAM_ASSET_HOST}`);
+			return void serveUpstream(req, res);
+		}
 	}
 
 	if (req.url === '/' || req.url === '' || req.url === '/index.html') {
