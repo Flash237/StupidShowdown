@@ -40,9 +40,10 @@ RUN printf '%s\n' \
     '}' \
     > StupidShowdownClient/config/routes.json
 
-# Build server TypeScript and compile client assets
+# Build server TypeScript first (client full build reads from dist/sim/dex)
 RUN npm run build
-RUN cd StupidShowdownClient && node build
+# 'full' generates all data/*.js files (pokedex, abilities, moves, etc.) from server data
+RUN cd StupidShowdownClient && node build full
 
 # Production image
 FROM node:22-slim
