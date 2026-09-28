@@ -3,6 +3,14 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
+# build-indexes/build-learnsets/etc. used to git clone+pull upstream
+# smogon/pokemon-showdown; we've patched them to read from our own
+# server's dist/ instead (see client-patches/build-tools), so git is
+# no longer strictly required for that — but npm/postinstall scripts
+# elsewhere may still shell out to it, so keep it installed.
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy root package files and install server dependencies
 COPY package*.json ./
 RUN npm ci
@@ -14,6 +22,12 @@ RUN cd StupidShowdownClient && npm ci
 
 # Copy full source (includes synced submodule files via build context)
 COPY . .
+
+# Overlay our patched client build tools (they read from our own server
+# dist/ instead of git-cloning upstream smogon/pokemon-showdown, which
+# is what makes our custom Pokemon/moves/formats show up in the client).
+# Copying after `COPY . .` so this wins over Render's synced submodule copy.
+COPY client-patches/build-tools/ ./StupidShowdownClient/build-tools/
 
 # Write production client config — points WebSocket at our own game server
 RUN printf '%s\n' \
