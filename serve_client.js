@@ -1,14 +1,15 @@
+const path = require('node:path');
 const http = require('node:http');
 const { StaticServer } = require('./dist/lib/static-server');
 
 // cacheTime: 0 - this is a local dev server; always serve fresh files instead of
 // letting the browser cache data/*.js (pokedex, search-index, etc.) for an hour.
-const clientServer = new StaticServer('./StupidShowdownClient/play.pokemonshowdown.com', { cacheTime: 0 });
+const clientServer = new StaticServer(path.resolve(__dirname, 'StupidShowdownClient/play.pokemonshowdown.com'), { cacheTime: 0 });
 // The real play.pokemonshowdown.com serves `config/` as a sibling directory via its
 // Apache virtual host mapping - pages request it as `../config/...` (e.g. testclient
 // pages loading config/testclient-key.js). Mirror that here, or those requests 404
 // and things like the testclient auto-login key silently never load.
-const configServer = new StaticServer('./StupidShowdownClient/config', { cacheTime: 0 });
+const configServer = new StaticServer(path.resolve(__dirname, 'StupidShowdownClient/config'), { cacheTime: 0 });
 const port = process.env.PORT || 8080;
 
 // config/testclient-key.js holds a live session token for whoever owns this machine.
