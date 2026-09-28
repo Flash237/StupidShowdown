@@ -5,9 +5,11 @@ const { StaticServer } = require('./dist/lib/static-server');
 
 const clientRoot = path.resolve(__dirname, 'StupidShowdownClient/play.pokemonshowdown.com');
 const configRoot = path.resolve(__dirname, 'StupidShowdownClient/config');
+// The build script outputs the processed index HTML to caches/index-old.html (not index.html)
+const indexHtml = path.join(clientRoot, 'caches/index-old.html');
 
-console.log(`[CLIENT-SERVER] Checking clientRoot: ${clientRoot} (exists: ${fs.existsSync(clientRoot)})`);
-console.log(`[CLIENT-SERVER] Checking index.html: ${path.join(clientRoot, 'index.html')} (exists: ${fs.existsSync(path.join(clientRoot, 'index.html'))})`);
+console.log(`[CLIENT-SERVER] clientRoot exists: ${fs.existsSync(clientRoot)}`);
+console.log(`[CLIENT-SERVER] index (caches/index-old.html) exists: ${fs.existsSync(indexHtml)}`);
 
 const clientServer = new StaticServer(clientRoot, { cacheTime: 0 });
 const configServer = new StaticServer(configRoot, { cacheTime: 0 });
@@ -102,8 +104,9 @@ http.createServer((req, res) => {
 	if (isConfig) req.url = req.url.slice('/config'.length);
 
 	if (req.url === '/' || req.url === '' || req.url === '/index.html') {
-		clientServer.serveFile('/index.html', 200, {}, req, res).then(result => {
-			console.log(`[RES] ${result?.status} /index.html`);
+		// Build script outputs the processed HTML to caches/index-old.html
+		clientServer.serveFile('/caches/index-old.html', 200, {}, req, res).then(result => {
+			console.log(`[RES] ${result?.status} / (caches/index-old.html)`);
 		}).catch(err => {
 			console.error(err);
 			res.writeHead(500);
