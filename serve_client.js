@@ -95,11 +95,6 @@ http.createServer((req, res) => {
 		return;
 	}
 	const isConfig = req.url.startsWith('/config/');
-	if (isConfig && !isLoopback(req)) {
-		res.writeHead(404);
-		res.end('Not found');
-		return;
-	}
 	const server = isConfig ? configServer : clientServer;
 	if (isConfig) req.url = req.url.slice('/config'.length);
 	server.serve(req, res).catch(err => {
