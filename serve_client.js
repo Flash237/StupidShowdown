@@ -73,6 +73,32 @@ function proxyGameUpgrade(req, clientSocket, head) {
 // and keep the client's built-in placeholder until custom art is added.
 const UPSTREAM_ASSET_HOST = 'play.pokemonshowdown.com';
 const UPSTREAM_PREFIXES = ['/sprites/', '/audio/'];
+// Login server relay: forward /~~<serverid>/action.php to the real login
+// server verbatim (method, body, cookies). Cookies matter: the client stores
+// its session (`sid`) on our origin, and the login server keys sessions off it.
+const LOGIN_HOST = 'play.pokemonshowdown.com';
+function serveLoginServer(req, res) {
+	const headers = { ...req.headers };
+	headers.host = LOGIN_HOST;
+	delete headers.connection; // hop-by-hop
+	const proxied = https.request({
+		hostname: LOGIN_HOST,
+		port: 443,
+		path: req.url,
+		method: req.method,
+		headers,
+	}, proxyRes => {
+		res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+		proxyRes.pipe(res);
+	});
+	proxied.on('error', err => {
+		console.error(`[LOGIN-ERROR] ${req.url}: ${err.message}`);
+		if (!res.headersSent) res.writeHead(502);
+		res.end('Login server unavailable');
+	});
+	req.pipe(proxied);
+}
+
 function serveUpstream(req, res) {
 	const upstream = https.get({
 		hostname: UPSTREAM_ASSET_HOST,
@@ -184,6 +210,17 @@ const server = http.createServer((req, res) => {
 			res.end('Internal Server Error');
 		});
 		return;
+	}
+
+	// Login server relay: the client's own copy of the request is made
+	// same-origin (for cookie access) to /~~<serverid>/action.php, which is the
+	// login server's endpoint - a third Pokemon Showdown component this repo
+	// doesn't ship. Relay it to upstream's login server, which already knows
+	// our registered server id. This is a transparent passthrough of each
+	// visitor's own request - no secrets of ours are involved.
+	if (/^\/~~[^/]+\/action\.php/.test(req.url)) {
+		console.log(`[LOGIN] ${req.method} ${req.url}`);
+		return void serveLoginServer(req, res);
 	}
 
 	// Game server tunnel: SockJS (and the raw websocket fallback) both live
