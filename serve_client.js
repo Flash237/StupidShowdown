@@ -101,7 +101,7 @@ http.createServer((req, res) => {
 	if (isConfig) req.url = req.url.slice('/config'.length);
 
 	if (req.url === '/' || req.url === '' || req.url === '/index.html') {
-		clientServer.serveFile('index.html', 200, {}, req, res).then(result => {
+		clientServer.serveFile('/index.html', 200, {}, req, res).then(result => {
 			console.log(`[RES] ${result?.status} /index.html`);
 		}).catch(err => {
 			console.error(err);
