@@ -15,6 +15,31 @@ RUN cd StupidShowdownClient && npm ci
 # Copy full source (includes synced submodule files via build context)
 COPY . .
 
+# Write production client config — points WebSocket at our own game server
+RUN printf '%s\n' \
+    'var Config = Config || {};' \
+    'Config.defaultserver = {' \
+    '  id: "stupidshowdown",' \
+    '  host: "stupidshowdown.onrender.com",' \
+    '  port: 443,' \
+    '  httpport: 80,' \
+    '  altport: 80,' \
+    '  registered: true' \
+    '};' \
+    > StupidShowdownClient/config/config.js
+
+# Override routes so asset URLs are rewritten to our domain (not play.pokemonshowdown.com)
+RUN printf '%s\n' \
+    '{' \
+    '  "root": "stupidshowdown.onrender.com",' \
+    '  "client": "stupidshowdown.onrender.com",' \
+    '  "dex": "dex.pokemonshowdown.com",' \
+    '  "replays": "replay.pokemonshowdown.com",' \
+    '  "users": "pokemonshowdown.com/users",' \
+    '  "teams": "teams.pokemonshowdown.com"' \
+    '}' \
+    > StupidShowdownClient/config/routes.json
+
 # Build server TypeScript and compile client assets
 RUN npm run build
 RUN cd StupidShowdownClient && node build
