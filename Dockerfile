@@ -31,6 +31,8 @@ COPY StupidShowdownClient/package*.json ./StupidShowdownClient/
 RUN cd StupidShowdownClient && npm ci --omit=dev
 
 # Copy compiled build artifacts and necessary runtime source files
+COPY --from=builder /app/build ./build
+COPY --from=builder /app/tools ./tools
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/data ./data
 COPY --from=builder /app/config ./config
@@ -49,4 +51,4 @@ ENV NODE_ENV=production
 EXPOSE 10000
 
 # Start script running both Game Server (background port 8000) and Client Proxy (foreground port 10000 / $PORT)
-CMD ["node", "-e", "const { spawn } = require('child_process'); const port = process.env.PORT || 10000; console.log('Starting Game Server on port 8000...'); spawn('node', ['pokemon-showdown', 'start', '8000'], { stdio: 'inherit' }); console.log('Starting Client Server on port ' + port + '...'); spawn('node', ['serve_client.js'], { stdio: 'inherit', env: { ...process.env, PORT: port } });"]
+CMD ["node", "-e", "const { spawn } = require('child_process'); const port = process.env.PORT || 10000; console.log('Starting Game Server on port 8000...'); spawn('node', ['pokemon-showdown', 'start', '--skip-build', '8000'], { stdio: 'inherit' }); console.log('Starting Client Server on port ' + port + '...'); spawn('node', ['serve_client.js'], { stdio: 'inherit', env: { ...process.env, PORT: port } });"]
