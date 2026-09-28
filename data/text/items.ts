@@ -2624,4 +2624,18 @@ export const ItemsText: { [id: IDEntry]: ItemText } = {
 		name: "Vile Vial",
 		shortDesc: "If held by a Venomicon, its Poison- and Flying-type attacks have 1.2x power.",
 	},
+
+	// Custom (StupidShowdown)
+	orbof20000years: {
+		name: "Orb of 20000 Years",
+		shortDesc: "If held by a Godzilla, this item allows it to be Godzilla-Earth.",
+	},
+	ghostorbofthebloodritual: {
+		name: "Ghost Orb of the Blood Ritual",
+		shortDesc: "If held by a Ghidorah, this item allows it to be Ghidorah-Void.",
+	},
+	mikuiniumz: {
+		name: "Mikuinium Z",
+		shortDesc: "If held by a Hatsune Miku with Hyper Voice, it can use Miku Miku Beam.",
+	},
 };

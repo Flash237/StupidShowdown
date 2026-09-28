@@ -13,7 +13,12 @@ export const Rulesets: import('../sim/dex-formats').FormatDataTable = {
 		name: 'Standard AG',
 		desc: "The minimal ruleset for Anything Goes",
 		ruleset: [
-			'Obtainable', 'Team Preview', 'HP Percentage Mod', 'Cancel Mod', 'Endless Battle Clause',
+			// +Custom: StupidShowdown's custom species/abilities/moves are tagged
+			// isNonstandard: "Custom" so they're clearly marked as homebrew, but that
+			// tag is banned by Obtainable by default - unban it here (the shared base
+			// of both Standard and Standard NatDex) so all Gen 9 formats, dex included,
+			// can actually use them instead of failing team validation.
+			'Obtainable', '+Custom', 'Team Preview', 'HP Percentage Mod', 'Cancel Mod', 'Endless Battle Clause',
 		],
 	},
 	standard: {

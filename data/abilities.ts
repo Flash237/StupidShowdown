@@ -5660,4 +5660,492 @@ export const Abilities: import('../sim/dex-abilities').AbilityDataTable = {
 		rating: 3,
 		num: -3,
 	},
+
+	// Custom (StupidShowdown)
+	cannoneer: {
+		onBasePowerPriority: 19,
+		onBasePower(basePower, attacker, defender, move) {
+			if (move.flags['bullet']) {
+				return this.chainModify(1.5);
+			}
+		},
+		isNonstandard: "Custom",
+		flags: {},
+		name: "Cannoneer",
+		rating: 3.5,
+		num: -4,
+	},
+	chargintarge: {
+		onStart(pokemon) {
+			this.effectState.usedFirstMove = false;
+		},
+		onModifyPriority(priority, pokemon, target, move) {
+			const explosiveMoves = ['selfdestruct', 'explosion', 'mindblown', 'mistyexplosion'];
+			if (!this.effectState.usedFirstMove && (move.flags['slicing'] || explosiveMoves.includes(move.id))) {
+				return priority + 2;
+			}
+		},
+		onBasePower(basePower, pokemon, target, move) {
+			const explosiveMoves = ['selfdestruct', 'explosion', 'mindblown', 'mistyexplosion'];
+			if (!this.effectState.usedFirstMove && (move.flags['slicing'] || explosiveMoves.includes(move.id))) {
+				return this.chainModify(1.5);
+			}
+		},
+		onAfterMove(pokemon) {
+			this.effectState.usedFirstMove = true;
+		},
+		isNonstandard: "Custom",
+		flags: {},
+		name: "Chargin' Targe",
+		rating: 3.5,
+		num: -5,
+	},
+	berrydelight: {
+		onUpdate(pokemon) {
+			const comboAbilities = ['berrydelight', 'deviltrigger'];
+			const partner = pokemon.adjacentAllies().find(ally => comboAbilities.includes(ally.ability));
+			if (!partner) return;
+			if (comboAbilities.includes(pokemon.ability)) pokemon.setAbility('parentalbond', partner);
+			if (comboAbilities.includes(partner.ability)) partner.setAbility('parentalbond', pokemon);
+		},
+		isNonstandard: "Custom",
+		flags: { failroleplay: 1, noreceiver: 1, noentrain: 1, notrace: 1 },
+		name: "Berry Delight",
+		rating: 3.5,
+		num: -6,
+	},
+	deviltrigger: {
+		// Sniper + Berry Delight baked into one ability (Vergil)
+		onModifyDamage(damage, source, target, move) {
+			if (target.getMoveHitData(move).crit) {
+				return this.chainModify(1.5);
+			}
+		},
+		onUpdate(pokemon) {
+			const comboAbilities = ['berrydelight', 'deviltrigger'];
+			const partner = pokemon.adjacentAllies().find(ally => comboAbilities.includes(ally.ability));
+			if (!partner) return;
+			if (comboAbilities.includes(pokemon.ability)) pokemon.setAbility('parentalbond', partner);
+			if (comboAbilities.includes(partner.ability)) partner.setAbility('parentalbond', pokemon);
+		},
+		isNonstandard: "Custom",
+		flags: { failroleplay: 1, noreceiver: 1, noentrain: 1, notrace: 1 },
+		name: "Devil Trigger",
+		rating: 4,
+		num: -13,
+	},
+	fairyarmor: {
+		// Forest's Curse/Trick-or-Treat style: adds Fairy to this Pokemon's own typing
+		// on switch-in, rather than a bolted-on defensive-only effectiveness check.
+		onStart(pokemon) {
+			if (!pokemon.hasType('Fairy') && pokemon.addType('Fairy')) {
+				this.add('-start', pokemon, 'typeadd', 'Fairy', '[from] ability: Fairy Armor');
+			}
+		},
+		isNonstandard: "Custom",
+		flags: {},
+		name: "Fairy Armor",
+		rating: 3.5,
+		num: -14,
+	},
+	radiation: {
+		// runs before Leftovers (onResidualOrder: 5) and other item/status residual healing
+		onResidualOrder: 1,
+		onResidualSubOrder: 1,
+		onResidual(pokemon) {
+			for (const target of this.getAllActive()) {
+				if (!target.hp) continue;
+				this.damage(target.baseMaxhp / 16, target, pokemon);
+			}
+		},
+		isNonstandard: "Custom",
+		flags: {},
+		name: "Radiation",
+		rating: 2.5,
+		num: -15,
+	},
+	pythagoreantheorem: {
+		// Long Reach's exact trick (strip the contact flag from this Pokemon's own
+		// moves) to make it immune to contact-triggered retaliation (Rough Skin,
+		// Static, Rocky Helmet, etc.) when it's the one making contact.
+		onModifyMove(move) {
+			delete move.flags['contact'];
+		},
+		// Separately: immune to the first contact move used against it since switching in.
+		onStart(pokemon) {
+			this.effectState.usedShield = false;
+		},
+		onTryHit(pokemon, source, move) {
+			if (!this.effectState.usedShield && move.flags['contact']) {
+				this.effectState.usedShield = true;
+				this.add('-immune', pokemon, '[from] ability: Pythagorean Theorem');
+				return null;
+			}
+		},
+		isNonstandard: "Custom",
+		flags: { breakable: 1 },
+		name: "Pythagorean Theorem",
+		rating: 4,
+		num: -16,
+	},
+	worksunderwater: {
+		// Filter + Water Absorb + Earth Eater baked into one ability (Flex Seal)
+		onSourceModifyDamage(damage, source, target, move) {
+			if (target.getMoveHitData(move).typeMod > 0) {
+				return this.chainModify(0.75);
+			}
+		},
+		onTryHit(target, source, move) {
+			if (target !== source && (move.type === 'Water' || move.type === 'Ground')) {
+				if (!this.heal(target.baseMaxhp / 4)) {
+					this.add('-immune', target, '[from] ability: Works Underwater');
+				}
+				return null;
+			}
+		},
+		isNonstandard: "Custom",
+		flags: { breakable: 1 },
+		name: "Works Underwater",
+		rating: 4,
+		num: -17,
+	},
+	progenitivedomain: {
+		onStart(pokemon) {
+			this.field.setTerrain('electromagneticplantterrain');
+		},
+		isNonstandard: "Custom",
+		flags: {},
+		name: "Progenitive Domain",
+		rating: 4.5,
+		num: -18,
+	},
+	thunderingzone: {
+		// Teravolt + Electric Aura (a Dark-Aura-style clone for Electric moves) baked
+		// into one ability (Ghidorah)
+		onStart(pokemon) {
+			this.add('-ability', pokemon, 'Thundering Zone');
+		},
+		onModifyMove(move) {
+			move.ignoreAbility = true;
+		},
+		onAnyBasePowerPriority: 20,
+		onAnyBasePower(basePower, source, target, move) {
+			if (target === source || move.category === 'Status' || move.type !== 'Electric') return;
+			if (!move.auraBooster?.hasAbility('Thundering Zone')) move.auraBooster = this.effectState.target;
+			if (move.auraBooster !== this.effectState.target) return;
+			return this.chainModify([5448, 4096]);
+		},
+		isNonstandard: "Custom",
+		flags: {},
+		name: "Thundering Zone",
+		rating: 4.5,
+		num: -19,
+	},
+	entrajwt: {
+		onFoeTryMove(target, source, move) {
+			const targetAllExceptions = ['perishsong', 'flowershield', 'rototiller'];
+			if (move.target === 'foeSide' || (move.target === 'all' && !targetAllExceptions.includes(move.id))) {
+				return;
+			}
+
+			const entraJwtHolder = this.effectState.target;
+			if ((source.isAlly(entraJwtHolder) || move.target === 'all') && move.priority > 0.1) {
+				this.attrLastMove('[still]');
+				this.add('cant', entraJwtHolder, 'ability: Entra JWT', move, `[of] ${target}`);
+				return false;
+			}
+		},
+		isNonstandard: "Custom",
+		flags: { breakable: 1 },
+		name: "Entra JWT",
+		rating: 3,
+		num: -7,
+	},
+	youreternalreward: {
+		// combines Illusion (visual disguise as the last party member) with Imposter
+		// (actually transforms into the opposing active Pokemon), per the spec's
+		// explicit "Imposter + Illusion combo use" ruling for Spy.
+		onBeforeSwitchIn(pokemon) {
+			pokemon.illusion = null;
+			for (let i = pokemon.side.pokemon.length - 1; i > pokemon.position; i--) {
+				const possibleTarget = pokemon.side.pokemon[i];
+				if (!possibleTarget.fainted) {
+					pokemon.illusion = possibleTarget;
+					break;
+				}
+			}
+		},
+		onSwitchIn(pokemon) {
+			// "no Imposter can replicate godhood" - excludes the Stupid Trio's Mega formes
+			const bannedSpecies = ['Scizor-Mega', 'Diancie-Mega', 'Gallade-Mega'];
+			const target = pokemon.side.foe.active[pokemon.side.foe.active.length - 1 - pokemon.position];
+			if (target && !bannedSpecies.includes(target.species.name)) {
+				pokemon.transformInto(target, this.dex.abilities.get('youreternalreward'));
+			}
+		},
+		onDamagingHit(damage, target, source, move) {
+			if (target.illusion) {
+				this.singleEvent('End', this.dex.abilities.get('Illusion'), target.abilityState, target, source, move);
+			}
+		},
+		onEnd(pokemon) {
+			if (pokemon.illusion && !pokemon.beingCalledBack) {
+				pokemon.illusion = null;
+				const details = pokemon.getUpdatedDetails();
+				this.add('replace', pokemon, details);
+				this.add('-end', pokemon, 'Illusion');
+			}
+		},
+		isNonstandard: "Custom",
+		flags: { failroleplay: 1, noreceiver: 1, noentrain: 1, notrace: 1 },
+		name: "Your Eternal Reward",
+		rating: 4.5,
+		num: -8,
+	},
+	fullstack: {
+		// Technician + Guts + Grassy Surge + Poison Heal baked into one ability (AWS)
+		onStart(pokemon) {
+			this.field.setTerrain('grassyterrain');
+		},
+		onModifyAtkPriority: 5,
+		onModifyAtk(atk, pokemon) {
+			if (pokemon.status) {
+				return this.chainModify(1.5);
+			}
+		},
+		onBasePowerPriority: 30,
+		onBasePower(basePower, attacker, defender, move) {
+			const basePowerAfterMultiplier = this.modify(basePower, this.event.modifier);
+			if (basePowerAfterMultiplier <= 60) {
+				return this.chainModify(1.5);
+			}
+		},
+		onDamagePriority: 1,
+		onDamage(damage, target, source, effect) {
+			if (effect.id === 'psn' || effect.id === 'tox') {
+				this.heal(target.baseMaxhp / 8);
+				return false;
+			}
+		},
+		isNonstandard: "Custom",
+		flags: {},
+		name: "Full Stack",
+		rating: 5,
+		num: -9,
+	},
+	zandatsu: {
+		// Regenerator + Prankster + Intimidate + Sharpness baked into one ability (Jetstream Sam)
+		onStart(pokemon) {
+			let activated = false;
+			for (const target of pokemon.adjacentFoes()) {
+				if (!activated) {
+					this.add('-ability', pokemon, 'Zandatsu', 'boost');
+					activated = true;
+				}
+				if (target.volatiles['substitute']) {
+					this.add('-immune', target);
+				} else {
+					this.boost({ atk: -1 }, target, pokemon, null, true);
+				}
+			}
+		},
+		onModifyPriority(priority, pokemon, target, move) {
+			if (move?.category === 'Status') {
+				move.pranksterBoosted = true;
+				return priority + 1;
+			}
+		},
+		onBasePowerPriority: 19,
+		onBasePower(basePower, attacker, defender, move) {
+			if (move.flags['slicing']) {
+				return this.chainModify(1.5);
+			}
+		},
+		onSwitchOut(pokemon) {
+			pokemon.heal(pokemon.baseMaxhp / 3);
+		},
+		isNonstandard: "Custom",
+		flags: {},
+		name: "Zandatsu",
+		rating: 4.5,
+		num: -10,
+	},
+	chickencostume: {
+		// Prankster + Regenerator + Serene Grace baked into one ability (Grian)
+		onModifyPriority(priority, pokemon, target, move) {
+			if (move?.category === 'Status') {
+				move.pranksterBoosted = true;
+				return priority + 1;
+			}
+		},
+		onSwitchOut(pokemon) {
+			pokemon.heal(pokemon.baseMaxhp / 3);
+		},
+		onModifyMovePriority: -2,
+		onModifyMove(move) {
+			if (move.secondaries) {
+				for (const secondary of move.secondaries) {
+					if (secondary.chance) secondary.chance *= 2;
+				}
+			}
+			if (move.self?.chance) move.self.chance *= 2;
+		},
+		isNonstandard: "Custom",
+		flags: {},
+		name: "Chicken Costume",
+		rating: 5,
+		num: -11,
+	},
+	ascendedexistence: {
+		// Total damage immunity - Void Ghidorah takes no damage from any source
+		// (moves, weather, hazards, status, recoil, confusion...) for as long as
+		// it has this ability. Only losing the ability itself (Skill Swap, Worry
+		// Seed, Gastro Acid, Neutralizing Gas, or a Mold Breaker-style move that
+		// ignores it) lets damage through again.
+		onStart(pokemon) {
+			this.add('-ability', pokemon, 'Ascended Existence');
+		},
+		onDamage(damage, target, source, effect) {
+			return false;
+		},
+		isNonstandard: "Custom",
+		flags: { breakable: 1 },
+		name: "Ascended Existence",
+		rating: 5,
+		num: -20,
+	},
+	theatricalgrace: {
+		// Serene Grace + a Special Attack version of Intimidate baked into one
+		// ability (Furina)
+		onStart(pokemon) {
+			let activated = false;
+			for (const target of pokemon.adjacentFoes()) {
+				if (!activated) {
+					this.add('-ability', pokemon, 'Theatrical Grace', 'boost');
+					activated = true;
+				}
+				if (target.volatiles['substitute']) {
+					this.add('-immune', target);
+				} else {
+					this.boost({ spa: -1 }, target, pokemon, null, true);
+				}
+			}
+		},
+		onModifyMovePriority: -2,
+		onModifyMove(move) {
+			if (move.secondaries) {
+				for (const secondary of move.secondaries) {
+					if (secondary.chance) secondary.chance *= 2;
+				}
+			}
+			if (move.self?.chance) move.self.chance *= 2;
+		},
+		isNonstandard: "Custom",
+		flags: {},
+		name: "Theatrical Grace",
+		rating: 4.5,
+		num: -21,
+	},
+	bloodpiston: {
+		// Mega Launcher + Quark Drive + a heal for landing any damaging move,
+		// baked into one ability (V1, ULTRAKILL). The Quark Drive half reuses the
+		// game's own shared 'quarkdrive' volatile/condition (same mechanism as
+		// every real Quark Drive user), so the stat-boost message displays as
+		// "Quark Drive" - this only changes who gets the effect, not its name.
+		onSourceDamagingHit(damage, target, source, move) {
+			this.heal(Math.round(damage / 2), source, target, move);
+		},
+		onBasePowerPriority: 19,
+		onBasePower(basePower, attacker, defender, move) {
+			if (move.flags['pulse']) {
+				return this.chainModify(1.5);
+			}
+		},
+		onSwitchInPriority: -2,
+		onStart(pokemon) {
+			this.singleEvent('TerrainChange', this.effect, this.effectState, pokemon);
+		},
+		onTerrainChange(pokemon) {
+			if (this.field.isTerrain('electricterrain')) {
+				pokemon.addVolatile('quarkdrive');
+			} else if (!pokemon.volatiles['quarkdrive']?.fromBooster) {
+				pokemon.removeVolatile('quarkdrive');
+			}
+		},
+		onEnd(pokemon) {
+			delete pokemon.volatiles['quarkdrive'];
+			this.add('-end', pokemon, 'Quark Drive', '[silent]');
+		},
+		isNonstandard: "Custom",
+		flags: { failroleplay: 1, noreceiver: 1, noentrain: 1, notrace: 1, failskillswap: 1, notransform: 1 },
+		name: "Blood Piston",
+		rating: 5,
+		num: -22,
+	},
+	sekaide: {
+		// Stellar-type Pixilate (converts Normal moves to Stellar, same power
+		// boost) + a permanent "every hit lands as not very effective" shell,
+		// modeled on Tera Shell's effectiveness override but unconditional
+		// instead of being gated behind full HP (Hatsune Miku)
+		onModifyTypePriority: -1,
+		onModifyType(move, pokemon) {
+			const noModifyType = [
+				'judgment', 'multiattack', 'naturalgift', 'revelationdance', 'technoblast', 'terrainpulse', 'weatherball',
+			];
+			if (move.type === 'Normal' && (!noModifyType.includes(move.id) || this.activeMove?.isMax) &&
+				!(move.isZ && move.category !== 'Status') && !(move.name === 'Tera Blast' && pokemon.terastallized)) {
+				move.type = 'Stellar';
+				move.typeChangerBoosted = this.effect;
+			}
+		},
+		onBasePowerPriority: 23,
+		onBasePower(basePower, pokemon, target, move) {
+			if (move.typeChangerBoosted === this.effect) return this.chainModify([4915, 4096]);
+		},
+		onEffectiveness(typeMod, target, type, move) {
+			if (move.category === 'Status') return;
+			return -1;
+		},
+		isNonstandard: "Custom",
+		flags: {},
+		name: "Sekai de",
+		rating: 5,
+		num: -23,
+	},
+	flowinglotus: {
+		// Dancer + Chlorophyll + Swift Swim + Own Tempo baked into one ability
+		// (Nilou). Dancer itself isn't a normal ability hook - it's a hardcoded
+		// check in sim/battle-actions.ts - so that check was updated to also
+		// recognize this ability id.
+		onModifySpe(spe, pokemon) {
+			if (['sunnyday', 'desolateland', 'raindance', 'primordialsea'].includes(pokemon.effectiveWeather())) {
+				return this.chainModify(2);
+			}
+		},
+		onUpdate(pokemon) {
+			if (pokemon.volatiles['confusion']) {
+				this.add('-activate', pokemon, 'ability: Flowing Lotus');
+				pokemon.removeVolatile('confusion');
+			}
+		},
+		onTryAddVolatile(status, pokemon) {
+			if (status.id === 'confusion') return null;
+		},
+		onHit(target, source, move) {
+			if (move?.volatileStatus === 'confusion') {
+				this.add('-immune', target, 'confusion', '[from] ability: Flowing Lotus');
+			}
+		},
+		onTryBoost(boost, target, source, effect) {
+			if (effect.name === 'Intimidate' && boost.atk) {
+				delete boost.atk;
+				this.add('-fail', target, 'unboost', 'Attack', '[from] ability: Flowing Lotus', `[of] ${target}`);
+			}
+		},
+		isNonstandard: "Custom",
+		flags: { breakable: 1 },
+		name: "Flowing Lotus",
+		rating: 4,
+		num: -24,
+	},
 };

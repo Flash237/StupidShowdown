@@ -8164,4 +8164,47 @@ export const Items: import('../sim/dex-items').ItemDataTable = {
 		gen: 8,
 		isNonstandard: "CAP",
 	},
+
+	// Custom (StupidShowdown)
+	orbof20000years: {
+		// Required-item forme-change gate for Godzilla-Earth, Giratina/Griseous-Orb
+		// style: holding this lets Godzilla be built/selected as Godzilla-Earth (see
+		// species.requiredItem in pokedex.ts). No other battle effect defined yet.
+		// Name deliberately has no comma: Teams.pack()'s format is comma/pipe-delimited,
+		// so a literal comma in a display name corrupts packed-team round-tripping
+		// (the same reason no real item/move/ability name ever contains one).
+		name: "Orb of 20000 Years",
+		spritenum: 0,
+		fling: {
+			basePower: 30,
+		},
+		num: -3,
+		gen: 9,
+	},
+	ghostorbofthebloodritual: {
+		// Required-item forme-change gate for Ghidorah-Void, same style as
+		// orbof20000years: holding this lets Ghidorah be built/selected as
+		// Ghidorah-Void (see species.requiredItem in pokedex.ts). No other
+		// battle effect defined yet.
+		name: "Ghost Orb of the Blood Ritual",
+		spritenum: 0,
+		fling: {
+			basePower: 30,
+		},
+		num: -4,
+		gen: 9,
+	},
+	mikuiniumz: {
+		// Signature Z-Crystal: lets Hatsune Miku turn Hyper Voice into her
+		// signature Z-move, Miku Miku Beam.
+		name: "Mikuinium Z",
+		spritenum: 0,
+		onTakeItem: false,
+		zMove: "Miku Miku Beam",
+		zMoveFrom: "Hyper Voice",
+		itemUser: ["Hatsune Miku"],
+		isNonstandard: "Custom",
+		num: -5,
+		gen: 9,
+	},
 };

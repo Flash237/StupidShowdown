@@ -21312,4 +21312,241 @@ export const Moves: import('../sim/dex-moves').MoveDataTable = {
 		type: "Fire",
 		contestType: "Beautiful",
 	},
+
+	// Custom (StupidShowdown)
+	pneumaticblast: {
+		num: -1,
+		accuracy: 100,
+		basePower: 80,
+		category: "Physical",
+		isNonstandard: "Custom",
+		name: "Pneumatic Blast",
+		pp: 15,
+		priority: 0,
+		flags: { contact: 1, protect: 1, mirror: 1 },
+		secondary: {
+			chance: 30,
+			volatileStatus: 'flinch',
+		},
+		target: "normal",
+		type: "Flying",
+		contestType: "Tough",
+	},
+	wyvernmissile: {
+		num: -3,
+		accuracy: 100,
+		basePower: 95,
+		category: "Special",
+		isNonstandard: "Custom",
+		name: "Wyvern Missile",
+		pp: 10,
+		priority: 0,
+		flags: { protect: 1, mirror: 1, distance: 1 },
+		overrideOffensiveStat: 'spe',
+		onEffectiveness(typeMod, target, type, move) {
+			return typeMod + this.dex.getEffectiveness('Fairy', type);
+		},
+		target: "any",
+		type: "Dragon",
+		contestType: "Cool",
+	},
+	atomicbreath: {
+		num: -5,
+		accuracy: 100,
+		basePower: 100,
+		category: "Special",
+		isNonstandard: "Custom",
+		name: "Atomic Breath",
+		pp: 5,
+		priority: 0,
+		flags: { protect: 1, mirror: 1 },
+		// Photon Geyser: category switches to whichever of Atk/SpA is higher, ignores
+		// the target's ability for this hit
+		onModifyMove(move, pokemon) {
+			if (pokemon.getStat('atk', false, true) > pokemon.getStat('spa', false, true)) move.category = 'Physical';
+		},
+		ignoreAbility: true,
+		// Dynamax Cannon: doubles power against a Dynamaxed target
+		onBasePower(basePower, source, target) {
+			if (target?.volatiles['dynamax']) {
+				return this.chainModify(2);
+			}
+		},
+		// Core Enforcer: suppresses the target's ability if it hasn't moved yet this turn
+		onHit(target) {
+			if (target.getAbility().flags['cantsuppress']) return;
+			if (target.newlySwitched || this.queue.willMove(target)) return;
+			target.addVolatile('gastroacid');
+		},
+		onAfterSubDamage(damage, target) {
+			if (target.getAbility().flags['cantsuppress']) return;
+			if (target.newlySwitched || this.queue.willMove(target)) return;
+			target.addVolatile('gastroacid');
+		},
+		target: "normal",
+		type: "Dragon",
+		contestType: "Cool",
+	},
+	nailshot: {
+		num: -2,
+		accuracy: 100,
+		basePower: 20,
+		category: "Physical",
+		isNonstandard: "Custom",
+		name: "Nail Shot",
+		pp: 15,
+		priority: 0,
+		flags: { protect: 1, mirror: 1 },
+		multihit: [2, 5],
+		target: "normal",
+		type: "Steel",
+		contestType: "Cool",
+	},
+	gravitybeams: {
+		num: -6,
+		accuracy: 100,
+		basePower: 60,
+		category: "Special",
+		isNonstandard: "Custom",
+		name: "Gravity Beams",
+		pp: 10,
+		priority: 0,
+		flags: { protect: 1, mirror: 1 },
+		multihit: 3,
+		secondary: {
+			chance: 20,
+			status: 'par',
+		},
+		// Photon Geyser: category switches to whichever of Atk/SpA is higher, ignores
+		// the target's ability for each hit
+		onModifyMove(move, pokemon) {
+			if (pokemon.getStat('atk', false, true) > pokemon.getStat('spa', false, true)) move.category = 'Physical';
+		},
+		ignoreAbility: true,
+		target: "normal",
+		type: "Electric",
+		contestType: "Cool",
+	},
+	sendyoutojesus: {
+		num: -7,
+		accuracy: 50,
+		basePower: 0,
+		category: "Physical",
+		isNonstandard: "Custom",
+		name: "Send You to Jesus",
+		pp: 5,
+		priority: 0,
+		flags: { protect: 1, mirror: 1, metronome: 1 },
+		// A Fissure clone with a flat 50% accuracy instead of the usual OHKO
+		// accuracy formula (level difference), so it isn't flagged move.ohko -
+		// damage is just forced to the target's current max HP instead.
+		damageCallback(pokemon, target) {
+			return target.maxhp;
+		},
+		onHit(target) {
+			if (!target.hp) this.add('-ohko');
+		},
+		target: "normal",
+		type: "Normal",
+		contestType: "Tough",
+	},
+	emotionaldamage: {
+		num: -8,
+		accuracy: 100,
+		basePower: 0,
+		category: "Status",
+		isNonstandard: "Custom",
+		name: "Emotional Damage",
+		pp: 5,
+		priority: 0,
+		flags: { reflectable: 1, mirror: 1, metronome: 1 },
+		// Traps the target and puts it under the same countdown-to-faint volatile
+		// Perish Song uses (registered under the 'perishsong' id already), but
+		// only on this one target instead of every active Pokemon.
+		onHit(target, source, move) {
+			let success = false;
+			if (!target.volatiles['trapped']) {
+				target.addVolatile('trapped', source, move, 'trapper');
+				success = true;
+			}
+			if (!target.volatiles['perishsong']) {
+				target.addVolatile('perishsong');
+				this.add('-start', target, 'perish3');
+				success = true;
+			}
+			if (!success) return false;
+		},
+		target: "normal",
+		type: "Normal",
+		contestType: "Tough",
+	},
+	sparechange: {
+		num: -9,
+		accuracy: 100,
+		basePower: 100,
+		category: "Physical",
+		isNonstandard: "Custom",
+		name: "Spare Change",
+		pp: 10,
+		priority: 0,
+		flags: { protect: 1, mirror: 1, pulse: 1 },
+		critRatio: 2,
+		// Sniper's damage boost, but baked into this move specifically instead of
+		// depending on the user's ability. Crit is already rolled by the time the
+		// BasePower event fires (see battle-actions.ts's damage calc), so this is
+		// checkable here even though the move type doesn't expose onModifyDamage.
+		onBasePower(basePower, source, target, move) {
+			if (target.getMoveHitData(move).crit) {
+				this.debug('Spare Change crit boost');
+				return this.chainModify(1.5);
+			}
+		},
+		target: "normal",
+		type: "Steel",
+		contestType: "Cool",
+	},
+	steelspikes: {
+		// Stealth Rock, but Steel-type damage scaling instead of Rock (Zhongli,
+		// Hitachi)
+		num: -10,
+		accuracy: true,
+		basePower: 0,
+		category: "Status",
+		isNonstandard: "Custom",
+		name: "Steel Spikes",
+		pp: 20,
+		priority: 0,
+		flags: { reflectable: 1, metronome: 1, mustpressure: 1 },
+		sideCondition: 'steelspikes',
+		condition: {
+			// this is a side condition
+			onSideStart(side) {
+				this.add('-sidestart', side, 'move: Steel Spikes');
+			},
+			onSwitchIn(pokemon) {
+				if (pokemon.hasItem('heavydutyboots')) return;
+				const typeMod = this.clampIntRange(pokemon.runEffectiveness(this.dex.getActiveMove('steelspikes')), -6, 6);
+				this.damage(pokemon.maxhp * (2 ** typeMod) / 8);
+			},
+		},
+		target: "foeSide",
+		type: "Steel",
+		contestType: "Cool",
+	},
+	mikumikubeam: {
+		// Signature Z-move: unlocked by Mikuinium Z + Hyper Voice (Hatsune Miku)
+		num: -11,
+		accuracy: true,
+		basePower: 250,
+		category: "Special",
+		isNonstandard: "Custom",
+		isZ: "mikuiniumz",
+		name: "Miku Miku Beam",
+		pp: 1,
+		priority: 0,
+		flags: {},
+		target: "allAdjacentFoes",
+		type: "Stellar",
+		contestType: "Beautiful",
+	},
 };

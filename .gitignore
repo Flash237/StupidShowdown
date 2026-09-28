@@ -1,5 +1,10 @@
 /config/*
 !/config/formats.ts
+/*.pdf
+UsersVettriAppDataLocalTempclaude*
+/ai-coder-resources
+
+
 /logs/**/*
 /test/modlogs
 /test/replays/*.html
@@ -71,3 +76,4 @@ local_settings.py
 pip-log.txt
 # redis dumps
 *.rdb
+.aider*

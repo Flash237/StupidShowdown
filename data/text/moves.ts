@@ -7650,4 +7650,56 @@ export const MovesText: { [id: IDEntry]: MoveText } = {
 			shortDesc: "Nearly always goes first. Always crits.",
 		},
 	},
+
+	// Custom (StupidShowdown)
+	pneumaticblast: {
+		name: "Pneumatic Blast",
+		desc: "Has a 30% chance to make the target flinch.",
+		shortDesc: "30% chance to make the target flinch.",
+	},
+	nailshot: {
+		name: "Nail Shot",
+		desc: "Hits two to five times. Has a 1/3 chance to hit two or three times, and a 1/6 chance to hit four or five times. If one of the hits breaks the target's Substitute, the move ends.",
+		shortDesc: "Hits 2-5 times in one turn.",
+	},
+	gravitybeams: {
+		name: "Gravity Beams",
+		desc: "Hits three times. This move and its effects ignore the Abilities of other Pokemon. Each hit has a 20% chance to paralyze the target. Category is Physical if the user's Attack is higher than its Special Attack, including stat stage changes.",
+		shortDesc: "Hits 3 times, each w/ 20% para chance. Ignores Abilities. Physical if Atk > SpA.",
+	},
+	sendyoutojesus: {
+		name: "Send You to Jesus",
+		desc: "Deals damage equal to the target's maximum HP. This attack has a 50% chance of hitting the target, regardless of the level of the target or the accuracy or evasiveness of either Pokemon.",
+		shortDesc: "50% accuracy. OHKOes the target.",
+	},
+	emotionaldamage: {
+		name: "Emotional Damage",
+		desc: "Prevents the target from switching out. The target faints after three turns unless it switches out, though this move prevents that. Similar to an infatuation, an attack, or a partial-trapping move, this effect ends if the target leaves the field, but otherwise cannot be avoided except by having an Ability or item that grants immunity to trapping or Perish Song.",
+		shortDesc: "Traps the target and starts a 3-turn Perish Song countdown on it.",
+	},
+	sparechange: {
+		name: "Spare Change",
+		desc: "Has a higher chance for a critical hit. If this move results in a critical hit, the damage is multiplied by 1.5x on top of the normal critical hit damage multiplier, as though the user had the Sniper Ability for this move only.",
+		shortDesc: "High critical hit ratio. Crits deal 1.5x more damage (Sniper-like).",
+	},
+	steelspikes: {
+		name: "Steel Spikes",
+		desc: "Sets up a hazard on the opposing side of the field, damaging each opposing Pokemon that switches in, unless it is holding Heavy-Duty Boots. Damage dealt is 1/8 of the switched-in Pokemon's maximum HP, adjusted by Steel's type effectiveness against the Pokemon's typing (2x or 4x damage if weak to Steel, 1/2x or 1/4x if resistant, no damage if immune). Fails if the effect is already active on the target's side.",
+		shortDesc: "Hazard: damages foes on switch-in, scaled by Steel weakness/resistance.",
+	},
+	mikumikubeam: {
+		name: "Miku Miku Beam",
+		desc: "Hits all adjacent foes. This move can only be selected if the user has the Z-Crystal Mikuinium Z and knows Hyper Voice.",
+		shortDesc: "Hyper Voice's Z-move. Hits all adjacent foes.",
+	},
+	wyvernmissile: {
+		name: "Wyvern Missile",
+		desc: "Damage is calculated using the user's Speed stat as its Attack, including stat stage changes. This move combines Fairy in its type effectiveness against the target, but the user only gets same-type attack bonus for its Dragon typing, not Fairy.",
+		shortDesc: "Uses user's Speed as Atk; also combines Fairy in its type effectiveness.",
+	},
+	atomicbreath: {
+		name: "Atomic Breath",
+		desc: "This move's category is changed to Physical if the user's Attack is higher than its Special Attack, including stat stage changes. This move ignores the target's ability. Power doubles if the target is Dynamaxed. If the user moves before the target, the target's ability is rendered ineffective for as long as it remains active, unless it is already Gastro Acid or an Ability that cannot be suppressed.",
+		shortDesc: "Uses higher of Atk/SpA; ignores target's Ability; 2x vs Dynamax; suppresses target's Ability if it hasn't moved.",
+	},
 };

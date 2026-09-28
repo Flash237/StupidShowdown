@@ -1,0 +1,9 @@
+node_modules
+dist
+StupidShowdownClient/node_modules
+StupidShowdownClient/dist
+.git
+.idea
+.vscode
+logs
+*.log

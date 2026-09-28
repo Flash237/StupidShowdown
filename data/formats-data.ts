@@ -6254,4 +6254,116 @@ export const FormatsData: import('../sim/dex-species').SpeciesFormatsDataTable =
 		isNonstandard: "Custom",
 		tier: "Illegal",
 	},
+	nahida: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	vergil: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	jetstreamsam: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	nilou: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	aws: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	azure: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	dante: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	navia: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	demoman: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	flexseal: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	ibuprofen: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	hitachint65ma4: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	grian: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	spy: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	dracannon: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	godzilla: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	godzillaearth: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	technoblade: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	stevenhe: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	ghidorah: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	ghidorahvoid: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	cactus: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	furina: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	v1: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	zhongli: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	raidenshogun: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	miyabi: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
+	hatsunemiku: {
+		tier: "Stupid",
+		doublesTier: "DOU",
+	},
 };

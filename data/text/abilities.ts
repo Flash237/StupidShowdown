@@ -2305,4 +2305,106 @@ export const AbilitiesText: { [id: IDEntry]: AbilityText } = {
 
 		activate: "  [POKEMON] extends [MOVE] by 2 turns!",
 	},
+
+	// Custom (StupidShowdown)
+	cannoneer: {
+		name: "Cannoneer",
+		desc: "This Pokemon's bullet-flagged attacks have their power multiplied by 1.5.",
+		shortDesc: "This Pokemon's bullet-flagged attacks have 1.5x power.",
+	},
+	chargintarge: {
+		name: "Chargin' Targe",
+		desc: "The first move this Pokemon uses after switching in has its priority increased by 2 and its power multiplied by 1.5, if that move is a slicing move or Explosion, Self-Destruct, Mind Blown, or Misty Explosion.",
+		shortDesc: "This Pokemon's first move after switch-in gets +2 priority and 1.5x power if it's slicing or explosive.",
+	},
+	berrydelight: {
+		name: "Berry Delight",
+		desc: "If this Pokemon and its active ally both have this Ability or Devil Trigger, both Pokemon's Abilities become Parental Bond for as long as they both remain active.",
+		shortDesc: "If this Pokemon's ally also has this Ability or Devil Trigger, both become Parental Bond.",
+	},
+	deviltrigger: {
+		name: "Devil Trigger",
+		desc: "If this Pokemon lands a critical hit, its damage is multiplied by 1.5. If this Pokemon and its active ally both have this Ability or Berry Delight, both Pokemon's Abilities become Parental Bond for as long as they both remain active.",
+		shortDesc: "Crits deal 1.5x damage; if this Pokemon's ally has Berry Delight/this Ability, both become Parental Bond.",
+	},
+	entrajwt: {
+		name: "Entra JWT",
+		desc: "Priority moves used by opposing Pokemon targeting this Pokemon or its allies are prevented from having an effect.",
+		shortDesc: "This Pokemon and its allies are protected from opposing priority moves.",
+	},
+	youreternalreward: {
+		name: "Your Eternal Reward",
+		desc: "On switch-in, this Pokemon appears as the last Pokemon in its party, while actually copying the species, stats, moves, Ability, and stat stages of the opposing Pokemon, as if it had used Transform. This effect fails against certain Pokemon.",
+		shortDesc: "On switch-in, disguises as the last party member while copying the foe's stats, moves, and Ability.",
+	},
+	fullstack: {
+		name: "Full Stack",
+		desc: "On switch-in, this Pokemon summons Grassy Terrain. This Pokemon's attacks of 60 power or less have their power multiplied by 1.5. If this Pokemon has a non-volatile status condition, its Attack is multiplied by 1.5. If this Pokemon is poisoned, it restores 1/8 of its maximum HP, rounded down, at the end of each turn instead of losing HP.",
+		shortDesc: "Sets Grassy Terrain; weak attacks and statused Attack are 1.5x; heals instead of poison damage.",
+	},
+	zandatsu: {
+		name: "Zandatsu",
+		desc: "On switch-in, this Pokemon lowers the Attack of opposing Pokemon by 1 stage. This Pokemon's status moves have their priority increased by 1. This Pokemon's slicing moves have their power multiplied by 1.5. This Pokemon restores 1/3 of its maximum HP, rounded down, when it switches out.",
+		shortDesc: "Intimidates on switch-in; status moves +1 priority; slicing moves 1.5x; heals 1/3 max HP on switch-out.",
+	},
+	chickencostume: {
+		name: "Chicken Costume",
+		desc: "This Pokemon's status moves have their priority increased by 1. This Pokemon restores 1/3 of its maximum HP, rounded down, when it switches out. This Pokemon's moves that have a secondary effect have the chance of the secondary effect doubled.",
+		shortDesc: "Status moves get +1 priority; heals 1/3 max HP on switch-out; secondary effect chances are doubled.",
+	},
+	fairyarmor: {
+		name: "Fairy Armor",
+		desc: "On switch-in, the Fairy type is added to this Pokemon, effectively making it have two or three types. Fails if this Pokemon is already a Fairy type.",
+		shortDesc: "On switch-in, adds Fairy to this Pokemon's type(s).",
+	},
+	ascendedexistence: {
+		name: "Ascended Existence",
+		desc: "This Pokemon cannot be damaged by anything, direct or indirect, while it has this ability.",
+		shortDesc: "This Pokemon cannot take damage until this ability is removed.",
+	},
+	theatricalgrace: {
+		name: "Theatrical Grace",
+		desc: "On switch-in, this Pokemon lowers the Special Attack of opposing Pokemon by 1 stage. This Pokemon's moves that have a secondary effect have the chance of the secondary effect doubled.",
+		shortDesc: "On switch-in, lowers the foe(s) Sp. Atk by 1. Doubles the chance of secondary effects.",
+	},
+	bloodpiston: {
+		name: "Blood Piston",
+		desc: "This Pokemon's pulse moves have their power multiplied by 1.5. If this Pokemon is grounded and Electric Terrain is active, its Attack, Special Attack, Defense, Special Defense, or Speed is multiplied by 1.3, or by 1.5 in the case of Speed, depending on which stat is highest. This Pokemon restores 50% of the damage dealt whenever it lands a damaging move.",
+		shortDesc: "Mega Launcher + Quark Drive, plus heals 50% of damage dealt by its moves.",
+	},
+	sekaide: {
+		name: "Sekai de",
+		desc: "This Pokemon's Normal-type moves become Stellar-type moves and have their power multiplied by 1.2. This effect comes after other effects that change a move's type, but before Ion Deluge and Electrify's effects. Every damaging move that hits this Pokemon is treated as not very effective, regardless of type matchups.",
+		shortDesc: "Stellar-type Pixilate. All damaging hits against this Pokemon are not very effective.",
+	},
+	flowinglotus: {
+		name: "Flowing Lotus",
+		desc: "After another Pokemon uses a dance move, this Pokemon uses the same move. This Pokemon's Speed is doubled if Sunny Day, Desolate Land, Rain Dance, or Primordial Sea is active. This Pokemon cannot be confused, and is immune to the Attack-lowering effect of the Intimidate Ability.",
+		shortDesc: "Dancer + Chlorophyll + Swift Swim + Own Tempo, all in one.",
+	},
+	radiation: {
+		name: "Radiation",
+		desc: "At the end of each turn, before items and other end-of-turn healing, every active Pokemon on the field loses 1/16 of its maximum HP, rounded down.",
+		shortDesc: "Before end-of-turn healing, all active Pokemon lose 1/16 max HP.",
+	},
+	pythagoreantheorem: {
+		name: "Pythagorean Theorem",
+		desc: "This Pokemon's attacks that make contact do not trigger the target's contact-activated effects, such as Rough Skin, Static, or Rocky Helmet. In addition, the first time this Pokemon is hit by a contact move after switching in, it takes no damage or effects from that move.",
+		shortDesc: "Immune to contact-triggered effects when attacking; immune to the first contact move against it per switch-in.",
+	},
+	worksunderwater: {
+		name: "Works Underwater",
+		desc: "This Pokemon receives 3/4 damage from supereffective attacks. If a Water- or Ground-type move would hit this Pokemon, it heals 1/4 of its maximum HP, rounded down, and the move fails to deal damage instead.",
+		shortDesc: "Resists supereffective hits by 25%; heals 1/4 max HP and blocks Water/Ground moves instead of taking damage.",
+	},
+	progenitivedomain: {
+		name: "Progenitive Domain",
+		desc: "On switch-in, this Pokemon summons Electromagnetic Plant Terrain.",
+		shortDesc: "On switch-in, summons Electromagnetic Plant Terrain.",
+	},
+	thunderingzone: {
+		name: "Thundering Zone",
+		desc: "This Pokemon's moves ignore the Abilities of other Pokemon. Electric-type moves used by any Pokemon on the field have their power multiplied by 1.33.",
+		shortDesc: "Ignores other Pokemon's Abilities; boosts all Electric-type moves used by any Pokemon 1.33x.",
+	},
 };

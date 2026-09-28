@@ -953,4 +953,56 @@ export const Conditions: import('../sim/dex-conditions').ConditionDataTable = {
 			return bp;
 		},
 	},
+
+	// Custom (StupidShowdown)
+	electromagneticplantterrain: {
+		name: 'Electromagnetic Plant Terrain',
+		effectType: 'Terrain',
+		duration: 5,
+		durationCallback(source, effect) {
+			if (source?.hasItem('terrainextender')) return 8;
+			return 5;
+		},
+		onTryHitPriority: 4,
+		onTryHit(target, source, move) {
+			if (move.category === 'Status') return;
+			if (!target.hasType('Grass')) return;
+			if (!target.isGrounded() || target.isSemiInvulnerable()) return;
+			// Only nullifies the weaknesses the Grass type itself carries (Fire, Ice,
+			// Poison, Flying, Bug) - not weaknesses coming from the target's other
+			// type(s), so this checks the move's type against Grass specifically
+			// rather than the target's overall combined effectiveness.
+			if (['Fire', 'Ice', 'Poison', 'Flying', 'Bug'].includes(move.type)) {
+				this.add('-immune', target, '[from] ability: Progenitive Domain');
+				return null;
+			}
+		},
+		onBasePowerPriority: 6,
+		onBasePower(basePower, attacker, defender, move) {
+			if (['Steel', 'Electric', 'Grass'].includes(move.type) && attacker.isGrounded() && !attacker.isSemiInvulnerable()) {
+				this.debug('electromagnetic plant terrain boost');
+				return this.chainModify([5325, 4096]);
+			}
+		},
+		onFieldStart(field, source, effect) {
+			if (effect?.effectType === 'Ability') {
+				this.add('-fieldstart', 'move: Electromagnetic Plant Terrain', '[from] ability: ' + effect.name, `[of] ${source}`);
+			} else {
+				this.add('-fieldstart', 'move: Electromagnetic Plant Terrain');
+			}
+		},
+		// same onResidualOrder as Leftovers (5), lower onResidualSubOrder so this
+		// damage happens before Leftovers heals - same trick Grassy Terrain uses
+		onResidualOrder: 5,
+		onResidualSubOrder: 1,
+		onResidual(pokemon) {
+			if (!pokemon.isGrounded() || pokemon.isSemiInvulnerable()) return;
+			if (!['Steel', 'Electric', 'Grass'].some(type => pokemon.hasType(type))) {
+				this.damage(pokemon.baseMaxhp / 8, pokemon, pokemon);
+			}
+		},
+		onFieldEnd() {
+			this.add('-fieldend', 'move: Electromagnetic Plant Terrain');
+		},
+	},
 };

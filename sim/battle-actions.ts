@@ -320,7 +320,9 @@ export class BattleActions {
 			const dancers = [];
 			for (const currentPoke of this.battle.getAllActive()) {
 				if (pokemon === currentPoke) continue;
-				if (currentPoke.hasAbility('dancer') && !currentPoke.isSemiInvulnerable()) {
+				// 'flowinglotus' is StupidShowdown's Dancer-inclusive combo ability (Nilou)
+				if ((currentPoke.hasAbility('dancer') || currentPoke.hasAbility('flowinglotus')) &&
+					!currentPoke.isSemiInvulnerable()) {
 					dancers.push(currentPoke);
 				}
 			}
@@ -335,12 +337,13 @@ export class BattleActions {
 			for (const dancer of dancers) {
 				if (this.battle.faintMessages()) break;
 				if (dancer.fainted) continue;
-				this.battle.add('-activate', dancer, 'ability: Dancer');
+				const dancerAbility = dancer.getAbility();
+				this.battle.add('-activate', dancer, 'ability: ' + dancerAbility.name);
 				const dancersTarget = !targetOf1stDance.isAlly(dancer) && pokemon.isAlly(dancer) ?
 					targetOf1stDance :
 					pokemon;
 				const dancersTargetLoc = dancer.getLocOf(dancersTarget);
-				this.runMove(move.id, dancer, dancersTargetLoc, { sourceEffect: this.dex.abilities.get('dancer'), externalMove: true });
+				this.runMove(move.id, dancer, dancersTargetLoc, { sourceEffect: dancerAbility, externalMove: true });
 			}
 		}
 		if (noLock && pokemon.volatiles['lockedmove']) delete pokemon.volatiles['lockedmove'];
