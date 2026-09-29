@@ -35,3 +35,11 @@ services:
     envVars:
       - key: PORT
         value: 10000
+      # Free tier shows no memory metrics and kills the container the moment it
+      # crosses 512MB, so bound each worker's V8 heap instead of letting any one
+      # process balloon into the kernel OOM killer: with a cap, GC trims
+      # validation/battle bursts first. 192MB clears the heaviest worker's
+      # measured peak (team-validator ~149MB RSS) with margin. Crashed workers
+      # are auto-respawned by the ProcessManager (max 5 per 30min).
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=192
