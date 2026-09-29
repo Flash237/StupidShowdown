@@ -19,10 +19,11 @@
 //    sprites/pokemonicons-sheet.png, positioned from the species' dex `num`
 //    (see Dex.getPokemonIconNum). That sheet only has cells for real species,
 //    and any num above the last real one (1025) is clamped back to 0 - which
-//    would make every custom Stupid mon render as a Bulbasaur icon. We have
-//    art for them as individual files, so teach getPokemonIcon to use those
-//    instead. Battle sprites are unaffected: they go through getSpriteData,
-//    which names files per species.
+//    would make every custom Stupid mon render as a Bulbasaur icon. The asset
+//    pack has dedicated icon art for the roster (head shots/logos), so teach
+//    getPokemonIcon to serve that from sprites/pokemonicons/<id> instead.
+//    Battle sprites are unaffected: they go through getSpriteData, which names
+//    files per species.
 //
 //    Every other item/species falls through to the untouched sheet lookup.
 (function () {
@@ -31,15 +32,23 @@
 		ghostorbofthebloodritual: 'ghostorbofthebloodritual.png',
 	};
 
-	// Species art for the icon slot. Dex nums 10002+ belong to this roster, so
-	// these ids can never collide with a real species.
-	const CUSTOM_POKEMON_IDS = [
-		'nahida', 'vergil', 'jetstreamsam', 'nilou', 'aws', 'azure', 'godzilla',
-		'godzilla-earth', 'dante', 'navia', 'demoman', 'flexseal', 'ibuprofen',
-		'hitachint65ma4', 'grian', 'spy', 'dracannon', 'technoblade', 'ghidorah',
-		'ghidorah-void', 'stevenhe', 'cactus', 'furina', 'v1', 'zhongli',
-		'raidenshogun', 'miyabi', 'hatsunemiku',
+	// Species art for the icon slot, split by what the asset pack actually
+	// contains:
+	//  - CUSTOM_MON_ICONS: ids with dedicated icon art (head shots/logos),
+	//    served from sprites/pokemonicons/<id>.png (whatever the file's real
+	//    extension is - serve_client.js answers with the right Content-Type).
+	//  - ids with no icon art in the pack (navia, furina, zhongli,
+	//    raidenshogun): fall back to their battle render, consistent with what
+	//    their battle sprites show (MissingNo. placeholder).
+	// Dex nums 10002+ belong to this roster, so none of these ids can collide
+	// with a real species.
+	const CUSTOM_MON_ICONS = [
+		'aws', 'azure', 'cactus', 'dante', 'demoman', 'dracannon', 'flexseal',
+		'ghidorah', 'ghidorah-void', 'godzilla', 'godzilla-earth', 'grian',
+		'hatsunemiku', 'hitachint65ma4', 'ibuprofen', 'jetstreamsam', 'miyabi',
+		'nahida', 'nilou', 'spy', 'stevenhe', 'technoblade', 'v1', 'vergil',
 	];
+	const CUSTOM_MON_ICON_FALLBACKS = ['navia', 'furina', 'zhongli', 'raidenshogun'];
 
 	function installCustomItemIcons() {
 		if (!window.Dex || window.Dex.getItemIcon.__stupidshowdown) return;
@@ -73,13 +82,14 @@
 			).toLowerCase().replace(/[^a-z0-9-]+/g, '');
 			// facingLeft (wild Pokemon seen from behind in battle) has no custom
 			// art; let those fall through to the sheet's placeholder.
-			if (!facingLeft && CUSTOM_POKEMON_IDS.includes(id)) {
-				// The sheet's cells are 40x30; render our art inside the same
-				// box (32x32 art centered, then nudged to sit on the baseline
-				// like the sheet's own icons do) so party-bar rows stay aligned.
+			if (!facingLeft && (CUSTOM_MON_ICONS.includes(id) || CUSTOM_MON_ICON_FALLBACKS.includes(id))) {
+				// The sheet's cells are 40x30; render our art inside the same box
+				// (32px square, nudged to sit on the baseline like the sheet's own
+				// icons) so party-bar rows stay aligned.
 				const fainted = pokemon && pokemon.fainted ?
 					';opacity:.3;filter:grayscale(100%) brightness(.5)' : '';
-				return `background:transparent url(${window.Dex.resourcePrefix}sprites/home-centered/${id}.png) ` +
+				const dir = CUSTOM_MON_ICONS.includes(id) ? 'sprites/pokemonicons' : 'sprites/home-centered';
+				return `background:transparent url(${window.Dex.resourcePrefix}${dir}/${id}.png) ` +
 					`no-repeat scroll -4px -1px / 40px 30px${fainted}`;
 			}
 			return sheetIcon.call(window.Dex, pokemon, facingLeft);

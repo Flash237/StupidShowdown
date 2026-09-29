@@ -267,6 +267,7 @@ function serveUpstream(req, res) {
 const CUSTOM_ASSET_ROOT = path.resolve(__dirname, 'client-patches/sprites');
 const CUSTOM_SPRITE_DIR = path.join(CUSTOM_ASSET_ROOT, 'custom');
 const CUSTOM_ITEMICON_DIR = path.join(CUSTOM_ASSET_ROOT, 'itemicons');
+const CUSTOM_ICON_DIR = path.join(CUSTOM_ASSET_ROOT, 'icons');
 const IMAGE_MIME_TYPES = {
 	'.png': 'image/png',
 	'.gif': 'image/gif',
@@ -296,7 +297,9 @@ function indexAssets(dir) {
 
 const customSprites = indexAssets(CUSTOM_SPRITE_DIR);
 const customItemIcons = indexAssets(CUSTOM_ITEMICON_DIR);
-console.log(`[CLIENT-SERVER] custom sprites: ${customSprites.size}, custom item icons: ${customItemIcons.size}`);
+const customMonIcons = indexAssets(CUSTOM_ICON_DIR);
+console.log(`[CLIENT-SERVER] custom sprites: ${customSprites.size}, custom item icons: ${customItemIcons.size}, ` +
+	`custom mon icons: ${customMonIcons.size}`);
 
 // Returns false if the file isn't there after all (so the caller can fall back).
 function serveCustomAsset(reqPath, res, dir, file) {
@@ -328,6 +331,13 @@ function tryServeCustomSprite(pathname, res) {
 	if (spriteDir === 'itemicons') {
 		const file = customItemIcons.get(name);
 		return !!file && serveCustomAsset(pathname, res, CUSTOM_ITEMICON_DIR, file);
+	}
+	// Species icon slot: the party bar and the teambuilder's mon list use their
+	// own dedicated art (head shots/logos from the asset pack) rather than the
+	// battle renders scaled down.
+	if (spriteDir === 'pokemonicons') {
+		const file = customMonIcons.get(name);
+		return !!file && serveCustomAsset(pathname, res, CUSTOM_ICON_DIR, file);
 	}
 	// `home-centered-shiny` / `gen5-shiny` name the same id as the plain
 	// directory does; take the artist's shiny export when there is one.

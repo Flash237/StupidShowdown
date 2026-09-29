@@ -73,15 +73,26 @@ here **and** an entry in that map.
 
 ## Not covered here
 
-- **Party-bar icons.** Not individual files: they're cells in
-  `sprites/pokemonicons-sheet.png` indexed by dex number, and `getPokemonIconNum`
-  clamps anything above 1025 to icon 0. Custom species therefore always show the
-  placeholder icon unless an entry is hand-added to `BattlePokemonIconIndexes` in
-  the client's `src/battle-dex-data.ts`. The `*_icon.*` / `*-icon.*` files in the
-  original `assets.zip` at the repo root are the source art for that future sheet;
-  none of them are served as they are, so they were left out of `custom/` rather
-  than adding files nothing reads. The exception is the two files in `itemicons/`,
-  which are wired up via the client hook above.
+- **Party-bar icons** used to be one of these - see `icons/` below for how they
+  are covered now.
+
+## icons/ - party-bar and teambuilder-list icons
+
+Individual icon files (head shots, logos, class icons from the asset pack),
+named by species id: `icons/nahida.webp`, `icons/demoman.jpg`,
+`icons/azure.svg`, ... The client hook in `client-config-extra.js` renders
+these in the icon slot for roster species instead of the shared
+`pokemonicons-sheet.png` (whose cells are indexed by dex number and clamp
+anything above 1025 back to placeholder 0). Like `custom/`, the extension on
+disk is the artist's real one and `serve_client.js` answers with the matching
+Content-Type; the client always asks for `<id>.png`.
+
+Covered: aws, azure, cactus, dante, demoman, dracannon, flexseal, ghidorah,
+ghidorah-void, godzilla, godzilla-earth, grian, hatsunemiku, hitachint65ma4,
+ibuprofen, jetstreamsam, miyabi, nahida, nilou, spy, stevenhe, technoblade,
+v1, vergil. Not in the pack (icon falls back to the species' battle render,
+same MissingNo. placeholder as its battle sprites): navia, furina, zhongli,
+raidenshogun.
 - **Animation and cries.** `./build-tools/build-minidex` needs animated gifs in
   `custom/ani/` to regenerate `data/pokedex-mini.js` with these species in it
   (until then it prints `SKIPPED` and the client proxies the minidex from

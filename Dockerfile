@@ -83,7 +83,8 @@ RUN printf '%s\n' \
 # run (for animated gifs in sprites/ani/) and any offline tooling would look.
 # Expected filenames: client-patches/sprites/README.md
 # Each directory must exist in git (they hold a README), because COPY fails on
-# a missing source.
+# a missing source. The sprites/ dir carries custom/ (battle renders),
+# icons/ (party-bar/list icon art) and itemicons/ (custom item art).
 COPY client-patches/sprites/ ./StupidShowdownClient/play.pokemonshowdown.com/sprites/
 COPY client-patches/audio/ ./StupidShowdownClient/play.pokemonshowdown.com/audio/
 
