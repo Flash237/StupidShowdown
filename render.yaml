@@ -26,10 +26,11 @@ services:
     name: stupidshowdown-game
     env: docker
     dockerfilePath: ./Dockerfile
-    # pokemon-showdown takes its port as a CLI arg, not an env var, so this
-    # needs a shell to expand $PORT - a bare dockerCommand string is NOT run
-    # through a shell by Render.
-    dockerCommand: sh -c "node pokemon-showdown start --skip-build $PORT"
+    # pokemon-showdown takes its port as a CLI arg, not an env var. The port is
+    # fixed below (envVars PORT), so it's spelled out here directly: Render
+    # mangles quoted dockerCommands - a `sh -c "..."` form reached the shell as
+    # one quoted word and died with "... : not found" (exit 127).
+    dockerCommand: node pokemon-showdown start --skip-build 10000
     plan: free
     envVars:
       - key: PORT
