@@ -275,9 +275,62 @@ const CLEAN_COOKIES_JS = `(function () {
 })();
 `;
 
+// The upstream client repo ships only `config/*-example.*` files; on
+// play.pokemonshowdown.com, config/colors.json and config/coil.json are symlinks
+// to files their deploy generates. In our image those targets don't exist, so
+// the symlinks dangle and the client's startup fetches 404. Answer with our own
+// defaults instead: `{}` means "no custom username colors" and "no Coil
+// settings", which is exactly right for a server that has neither.
+// (Anything actually dropped into StupidShowdownClient/config/ still wins.)
+const CONFIG_DEFAULT_FILES = {
+	'/config/colors.json': '{}',
+	'/config/coil.json': '{}',
+};
+
+// The main menu fetches `https://<Config.routes.root>/news.json` - that's our
+// own domain - and renders data[0] and data[1] without checking whether they
+// exist, so the file has to exist AND hold at least two entries: a 404, an empty
+// array, or null all make the news box throw instead of staying empty.
+// Replace these posts with your own announcements.
+const NEWS_JSON = JSON.stringify([
+	{
+		id: 1,
+		title: 'Welcome to StupidShowdown',
+		summaryHTML: 'This server runs custom formats and custom Pok&eacute;mon. ' +
+			'Pick a format in the teambuilder to see them.',
+		author: 'StupidShowdown',
+		date: 1790640000,
+	},
+	{
+		id: 2,
+		title: 'Custom art is on the way',
+		summaryHTML: 'Until sprite art is added for the custom roster, they fall back ' +
+			'to the regular client placeholder graphics.',
+		author: 'StupidShowdown',
+		date: 1790640000,
+	},
+]);
+
 const server = http.createServer((req, res) => {
 	console.log(`[REQ] ${req.method} ${req.url}`);
 	const reqPath = req.url.split('?')[0]; // request path without the cachebuster query
+	if (CONFIG_DEFAULT_FILES[reqPath] && !fs.existsSync(path.join(configRoot, path.basename(reqPath)))) {
+		console.log(`[RES] 200 ${reqPath} (built-in default)`);
+		res.writeHead(200, {
+			'content-type': 'application/json; charset=utf-8',
+			'cache-control': 'max-age=0',
+		});
+		res.end(CONFIG_DEFAULT_FILES[reqPath]);
+		return;
+	}
+	if (reqPath === '/news.json') {
+		res.writeHead(200, {
+			'content-type': 'application/json; charset=utf-8',
+			'cache-control': 'max-age=0',
+		});
+		res.end(NEWS_JSON);
+		return;
+	}
 	if (req.url.startsWith('/actionproxy?')) {
 		serveActionProxy(req, res).catch(err => {
 			console.error(err);
