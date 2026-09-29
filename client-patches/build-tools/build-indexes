@@ -601,13 +601,18 @@ process.stdout.write("Building `data/teambuilder-tables.js`... ");
 			if (isDoubles && genNum > 4) {
 				return ["DUber", "(DUber)", "DOU", "DBL", "(DOU)", "DUU", "(DUU)", "New", "NFE", "LC"];
 			}
+			// StupidShowdown: the custom roster's tier gets its own section, first
+			// of the legal tiers (before Uber/OU). [Gen 9] Stupid bans only AG, so
+			// its picker slices from here and shows Stupid, then Uber/OU/... - the
+			// mons you came for at the top, everything still legal below.
 			return [
-				"CAP", "CAP NFE", "CAP LC", "AG", "(AG)", "Uber", "OU", "(OU)", "UUBL", "UU", "RUBL", "RU", "NUBL", "NU", "PUBL", "PU", "ZUBL", "ZU", "New", "NFE", "LC", "Unreleased",
+				"CAP", "CAP NFE", "CAP LC", "AG", "(AG)", "Stupid", "Uber", "OU", "(OU)", "UUBL", "UU", "RUBL", "RU", "NUBL", "NU", "PUBL", "PU", "ZUBL", "ZU", "New", "NFE", "LC", "Unreleased",
 			];
 		})();
 
 		for (const tier of tierOrder) {
 			if (tier in {
+				Stupid: 1,
 				OU: 1, UUBL: 1, AG: 1, Uber: 1, UU: 1, RU: 1, NU: 1, PU: 1, ZU: 1, NFE: 1, LC: 1, DOU: 1, DUU: 1,
 				"(DUU)": 1, New: 1, Legal: 1, Regular: 1, Restricted: 1, "CAP LC": 1,
 			}) {

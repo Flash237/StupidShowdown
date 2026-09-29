@@ -28,6 +28,10 @@ COPY . .
 # is what makes our custom Pokemon/moves/formats show up in the client).
 # Copying after `COPY . .` so this wins over Render's synced submodule copy.
 COPY client-patches/build-tools/ ./StupidShowdownClient/build-tools/
+# Overlay our patched client sources too (see client-patches/src) - the submodule
+# is pinned to upstream smogon/pokemon-showdown-client, so source edits live here
+# and win over Render's synced submodule copy.
+COPY client-patches/src/ ./StupidShowdownClient/play.pokemonshowdown.com/src/
 
 # Write production client config — start from the shipped example so every
 # property the client expects (Config.customcolors, Config.whitelist,
