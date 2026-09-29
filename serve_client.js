@@ -45,6 +45,47 @@ function proxyGameHttp(req, res) {
 	req.pipe(proxied);
 }
 
+// The game server (spawned alongside this process by the Docker CMD) needs
+// several seconds to load all battle data and bind its SockJS port, while this
+// process can bind $PORT in well under a second. On hosts where "the port is
+// open" is what marks a deploy live, listening immediately means the first
+// visitor loads the client against a battle server that isn't accepting
+// connections yet: SockJS connect fails, no |formats| message ever arrives,
+// and the teambuilder shows an empty format list. Wait for the game port to
+// accept connections before we start serving, so traffic is only routed here
+// once the battle server can actually answer.
+function waitForGameServer() {
+	const timeout = Number(process.env.GAME_READY_TIMEOUT) || 180000;
+	const startedAt = Date.now();
+	return new Promise(resolve => {
+		const attempt = () => {
+			const socket = net.connect(GAME_PORT, GAME_HOST);
+			let settled = false;
+			const retry = () => {
+				if (settled) return;
+				settled = true;
+				socket.destroy();
+				if (Date.now() - startedAt >= timeout) {
+					console.error(`[GAMESRV] still not accepting connections after ${timeout}ms; serving anyway`);
+					resolve(false);
+					return;
+				}
+				setTimeout(attempt, 500);
+			};
+			socket.once('connect', () => {
+				if (settled) return;
+				settled = true;
+				socket.destroy();
+				resolve(true);
+			});
+			socket.once('timeout', retry);
+			socket.once('error', retry);
+			socket.setTimeout(2000);
+		};
+		attempt();
+	});
+}
+
 function proxyGameUpgrade(req, clientSocket, head) {
 	const upstream = net.connect(GAME_PORT, GAME_HOST);
 	upstream.on('connect', () => {
@@ -272,7 +313,7 @@ const server = http.createServer((req, res) => {
 		res.writeHead(500);
 		res.end('Internal Server Error');
 	});
-}).listen(port);
+});
 
 // WebSocket transport pass-through (must be on the same server/port; the
 // game server's own SockJS endpoint answers the handshake).
@@ -285,4 +326,15 @@ server.on('upgrade', (req, socket, head) => {
 	proxyGameUpgrade(req, socket, head);
 });
 
-console.log(`Client serving at http://localhost:${port}`);
+server.on('error', err => {
+	console.error(`[CLIENT-SERVER] listen failed: ${err.message}`);
+	process.exitCode = 1;
+});
+
+console.log(`[CLIENT-SERVER] waiting for game server on ${GAME_HOST}:${GAME_PORT}...`);
+waitForGameServer().then(gameReady => {
+	server.listen(port, () => {
+		console.log(`Client serving at http://localhost:${port}` +
+			(gameReady ? '' : ' (game server never came up)'));
+	});
+});
