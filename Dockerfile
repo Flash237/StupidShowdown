@@ -39,13 +39,16 @@ COPY client-patches/build-tools/ ./StupidShowdownClient/build-tools/
 # client-config-extra.js is then appended too: it's the client-side hook that
 # points the two custom items at their own icon files instead of cell 0 of the
 # shared itemicons sheet (see that file, and client-patches/sprites/README.md).
+# The host below is this repo's *public* Render service (see render.yaml) - the
+# browser connects to that service, which tunnels /showdown to the separate game
+# service. It is not the game service's own hostname.
 RUN cp StupidShowdownClient/config/config-example.js StupidShowdownClient/config/config.js && \
     printf '%s\n' \
     '' \
     '// StupidShowdown: talk to our own game server, not the official one.' \
     'Config.defaultserver = {' \
     '  id: "stupidshowdown",' \
-    '  host: "stupidshowdown.onrender.com",' \
+    '  host: "stupidshowdown-web.onrender.com",' \
     '  port: 443,' \
     '  httpport: 80,' \
     '  altport: 80,' \
@@ -54,11 +57,14 @@ RUN cp StupidShowdownClient/config/config-example.js StupidShowdownClient/config
     >> StupidShowdownClient/config/config.js && \
     cat client-patches/client-config-extra.js >> StupidShowdownClient/config/config.js
 
-# Override routes so asset URLs are rewritten to our domain (not play.pokemonshowdown.com)
+# Override routes so asset URLs are rewritten to our own domain (not
+# play.pokemonshowdown.com). `root` must stay in sync with the public service
+# hostname in Config.defaultserver above: serve_client.js reads it back at
+# startup to strip the hostname prefix off rewritten asset URLs.
 RUN printf '%s\n' \
     '{' \
-    '  "root": "stupidshowdown.onrender.com",' \
-    '  "client": "stupidshowdown.onrender.com",' \
+    '  "root": "stupidshowdown-web.onrender.com",' \
+    '  "client": "stupidshowdown-web.onrender.com",' \
     '  "dex": "dex.pokemonshowdown.com",' \
     '  "replays": "replay.pokemonshowdown.com",' \
     '  "users": "pokemonshowdown.com/users",' \
@@ -99,5 +105,9 @@ ENV NODE_ENV=production
 
 EXPOSE 10000
 
-# Start both servers: game server on 8000 (background) and client proxy on $PORT (foreground)
+# Start both servers: game server on 8000 (background) and client proxy on $PORT
+# (foreground). This same-container shape is what render.yaml overrides with a
+# per-service `dockerCommand` - in production the two processes run in separate
+# services (see render.yaml); both together here is what lets you `docker run`
+# the image locally and get a working server on one port.
 CMD ["node", "-e", "const { spawn } = require('child_process'); const port = process.env.PORT || 10000; console.log('Starting Game Server on port 8000...'); const game = spawn('node', ['pokemon-showdown', 'start', '--skip-build', '8000'], { stdio: 'inherit' }); game.on('error', e => console.error('Game server error:', e)); game.on('exit', (code, signal) => console.error('Game server exited:', code, signal)); console.log('Starting Client Server on port ' + port + '...'); const client = spawn('node', ['serve_client.js'], { stdio: 'inherit', env: { ...process.env, PORT: String(port) } }); client.on('error', e => console.error('Client server error:', e));"]

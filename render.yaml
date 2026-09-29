@@ -1,8 +1,35 @@
 services:
+  # Public-facing: serves the client, proxies /showdown/ HTTP+WS traffic to
+  # the game server below, relays login/action-proxy requests. This is what
+  # players actually connect to.
   - type: web
-    name: stupid-showdown
+    name: stupidshowdown-web
     env: docker
     dockerfilePath: ./Dockerfile
+    dockerCommand: node serve_client.js
+    plan: free
+    envVars:
+      - key: PORT
+        value: 10000
+      # Must match the game service's `name:` below - Render's public hostname
+      # is always <service-name>.onrender.com. Free-tier services can't use
+      # Render's private network (only paid Starter+ can), so this talks to
+      # the game service over its public HTTPS endpoint instead.
+      - key: GAMEHOST
+        value: stupidshowdown-game.onrender.com
+
+  # Not directly visited by players. Runs only the battle simulator/server,
+  # in its own container with its own independent 512MB memory budget - this
+  # is the actual fix for the OOM/404s caused by both processes sharing one
+  # free-tier container.
+  - type: web
+    name: stupidshowdown-game
+    env: docker
+    dockerfilePath: ./Dockerfile
+    # pokemon-showdown takes its port as a CLI arg, not an env var, so this
+    # needs a shell to expand $PORT - a bare dockerCommand string is NOT run
+    # through a shell by Render.
+    dockerCommand: sh -c "node pokemon-showdown start --skip-build $PORT"
     plan: free
     envVars:
       - key: PORT

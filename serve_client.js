@@ -2,6 +2,7 @@ const path = require('node:path');
 const http = require('node:http');
 const https = require('node:https');
 const net = require('node:net');
+const tls = require('node:tls');
 const fs = require('node:fs');
 const { StaticServer } = require('./dist/lib/static-server');
 
@@ -10,26 +11,60 @@ const configRoot = path.resolve(__dirname, 'StupidShowdownClient/config');
 // The build script outputs the processed index HTML to caches/index-old.html (not index.html)
 const indexHtml = path.join(clientRoot, 'caches/index-old.html');
 
+// The client build (`build-tools/update`) rewrites the client's asset URLs to an
+// absolute path rooted at the site hostname it read from config/routes.json - the
+// Dockerfile generates that file - so requests arrive as
+// `/stupidshowdown-web.onrender.com/sprites/...` and need that prefix stripped
+// before anything can resolve the path. Read the hostname back out of the same
+// file the build read instead of hardcoding it a second time here, so renaming
+// the Render web service only means editing config/routes.json (and
+// Config.defaultserver in the Dockerfile) rather than this file too.
+function readSiteHost() {
+	try {
+		const routes = JSON.parse(fs.readFileSync(path.join(configRoot, 'routes.json'), 'utf8'));
+		return typeof routes.root === 'string' ? routes.root : '';
+	} catch {
+		return ''; // routes.json only exists after a build; no prefix to strip until then
+	}
+}
+const SITE_HOST = readSiteHost();
+
 console.log(`[CLIENT-SERVER] clientRoot exists: ${fs.existsSync(clientRoot)}`);
+console.log(`[CLIENT-SERVER] site host: ${SITE_HOST || '(none)'}`);
 console.log(`[CLIENT-SERVER] index (caches/index-old.html) exists: ${fs.existsSync(indexHtml)}`);
 
 const clientServer = new StaticServer(clientRoot, { cacheTime: 0 });
 const configServer = new StaticServer(configRoot, { cacheTime: 0 });
 const port = process.env.PORT || 8080;
 
-// The game server (started by the Docker CMD on port 8000) speaks SockJS on
-// the /showdown path prefix. The browser reaches it through this same public
-// port, so tunnel everything under /showdown to it - both plain HTTP (SockJS
-// info/long-polling/xhr-streaming requests) and WebSocket upgrades.
-const GAME_HOST = '127.0.0.1';
+// The game server speaks SockJS on the /showdown path prefix. The browser
+// reaches it through this same public port, so tunnel everything under
+// /showdown to it - both plain HTTP (SockJS info/long-polling/xhr-streaming
+// requests) and WebSocket upgrades.
+//
+// Two deployment shapes are supported:
+//  - Same container (default): GAMEHOST unset, we talk plaintext to
+//    127.0.0.1:8000 where the Docker CMD spawned the game server alongside
+//    this process.
+//  - Separate Render service (set GAMEHOST to that service's hostname, e.g.
+//    stupidshowdown-game.onrender.com): Render web services only expose
+//    443/HTTPS publicly - there's no raw TCP port to reach - so we speak
+//    TLS to the game server's own public port 443 instead.
+const GAME_HOST = process.env.GAMEHOST || '127.0.0.1';
 const GAME_PORT = Number(process.env.GAMEPORT) || 8000;
+const GAME_USE_TLS = GAME_HOST !== '127.0.0.1' && GAME_HOST !== 'localhost';
+const gameTransportPort = GAME_USE_TLS ? 443 : GAME_PORT;
 
 function proxyGameHttp(req, res) {
 	const headers = { ...req.headers };
 	delete headers.connection; // hop-by-hop; let Node manage keep-alive
-	const proxied = http.request({
+	// Render's edge routes by Host header, so going out to another service over
+	// its public hostname means saying so - not echoing whatever domain the
+	// browser used to reach us.
+	if (GAME_USE_TLS) headers.host = GAME_HOST;
+	const proxied = (GAME_USE_TLS ? https : http).request({
 		host: GAME_HOST,
-		port: GAME_PORT,
+		port: gameTransportPort,
 		path: req.url,
 		method: req.method,
 		headers,
@@ -45,54 +80,84 @@ function proxyGameHttp(req, res) {
 	req.pipe(proxied);
 }
 
-// The game server (spawned alongside this process by the Docker CMD) needs
-// several seconds to load all battle data and bind its SockJS port, while this
-// process can bind $PORT in well under a second. On hosts where "the port is
-// open" is what marks a deploy live, listening immediately means the first
-// visitor loads the client against a battle server that isn't accepting
-// connections yet: SockJS connect fails, no |formats| message ever arrives,
-// and the teambuilder shows an empty format list. Wait for the game port to
-// accept connections before we start serving, so traffic is only routed here
-// once the battle server can actually answer.
+// The game server needs several seconds to load all battle data and bind its
+// SockJS port, while this process can bind $PORT in well under a second. On
+// hosts where "the port is open" is what marks a deploy live, listening
+// immediately means the first visitor loads the client against a battle server
+// that isn't accepting connections yet: SockJS connect fails, no |formats|
+// message ever arrives, and the teambuilder shows an empty format list. Wait
+// for the battle server to actually answer before we start serving, so traffic
+// is only routed here once it can.
+//
+// "Is the port open" is not a sufficient test when the game server lives in a
+// different Render service: we reach it through Render's HTTPS edge, which
+// accepts the TCP connection and completes the TLS handshake whether or not the
+// container behind it is awake - so a connect test succeeds even while the game
+// service is still booting, and requests would then 502. Ask the SockJS
+// endpoint for its /info document and require a 200 instead: only the game
+// server's own listener can produce that. This doubles as the thing that wakes
+// a spun-down free instance, since a real HTTP request is what triggers it.
+const GAME_READY_PATH = '/showdown/info';
+const GAME_READY_TIMEOUT_MS = 10000;
+
+function probeGameServer() {
+	return new Promise(resolve => {
+		let settled = false;
+		const done = ready => {
+			if (settled) return;
+			settled = true;
+			resolve(ready);
+		};
+		const request = (GAME_USE_TLS ? https : http).get({
+			host: GAME_HOST,
+			port: gameTransportPort,
+			path: GAME_READY_PATH,
+			headers: { host: GAME_HOST },
+		}, res => {
+			res.resume(); // only the status line matters; drop the body
+			done(res.statusCode === 200);
+		});
+		request.setTimeout(GAME_READY_TIMEOUT_MS, () => request.destroy());
+		request.on('error', () => done(false));
+	});
+}
+
 function waitForGameServer() {
 	const timeout = Number(process.env.GAME_READY_TIMEOUT) || 180000;
 	const startedAt = Date.now();
 	return new Promise(resolve => {
-		const attempt = () => {
-			const socket = net.connect(GAME_PORT, GAME_HOST);
-			let settled = false;
-			const retry = () => {
-				if (settled) return;
-				settled = true;
-				socket.destroy();
-				if (Date.now() - startedAt >= timeout) {
-					console.error(`[GAMESRV] still not accepting connections after ${timeout}ms; serving anyway`);
-					resolve(false);
-					return;
-				}
-				setTimeout(attempt, 500);
-			};
-			socket.once('connect', () => {
-				if (settled) return;
-				settled = true;
-				socket.destroy();
+		const attempt = async () => {
+			if (await probeGameServer()) {
+				console.log(`[GAMESRV] answering ${GAME_READY_PATH} after ${Date.now() - startedAt}ms`);
 				resolve(true);
-			});
-			socket.once('timeout', retry);
-			socket.once('error', retry);
-			socket.setTimeout(2000);
+				return;
+			}
+			if (Date.now() - startedAt >= timeout) {
+				console.error(`[GAMESRV] still not answering ${GAME_READY_PATH} after ${timeout}ms; serving anyway`);
+				resolve(false);
+				return;
+			}
+			setTimeout(() => void attempt(), 1000);
 		};
-		attempt();
+		void attempt();
 	});
 }
 
 function proxyGameUpgrade(req, clientSocket, head) {
-	const upstream = net.connect(GAME_PORT, GAME_HOST);
-	upstream.on('connect', () => {
-		// forward the raw request verbatim (method, URL, headers incl. Upgrade)
+	const upstream = GAME_USE_TLS ?
+		tls.connect({ host: GAME_HOST, port: gameTransportPort, servername: GAME_HOST }) :
+		net.connect(GAME_PORT, GAME_HOST);
+	upstream.on(GAME_USE_TLS ? 'secureConnect' : 'connect', () => {
+		// forward the raw request verbatim (method, URL, headers incl. Upgrade).
+		// When GAME_USE_TLS, this is going to the game server's own Render
+		// hostname over its public port 443, and Render's edge routes by the
+		// Host header - so that header has to say GAME_HOST, not whatever
+		// domain the browser originally connected to (this client service's).
 		const lines = [`${req.method} ${req.url} HTTP/1.1`];
 		for (let i = 0; i < req.rawHeaders.length; i += 2) {
-			lines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
+			const name = req.rawHeaders[i];
+			const value = (GAME_USE_TLS && name.toLowerCase() === 'host') ? GAME_HOST : req.rawHeaders[i + 1];
+			lines.push(`${name}: ${value}`);
 		}
 		upstream.write(lines.join('\r\n') + '\r\n\r\n');
 		if (head.length) upstream.write(head);
@@ -104,6 +169,13 @@ function proxyGameUpgrade(req, clientSocket, head) {
 		clientSocket.destroy();
 	});
 	clientSocket.on('error', () => upstream.destroy());
+	// A browser that goes away cleanly closes its socket (emitting 'close', not
+	// 'error', which destroy() without an error never emits), and the same
+	// happens in reverse if the game server drops us. Without these the other end
+	// of the pair is left open with nobody reading it, which on a 512MB free-tier
+	// container is a slow leak of sockets across every abandoned connection.
+	clientSocket.on('close', () => upstream.destroy());
+	upstream.on('close', () => clientSocket.destroy());
 }
 
 // The client repo intentionally excludes the big binary assets (sprites/,
@@ -264,11 +336,13 @@ function tryServeCustomSprite(pathname, res) {
 	return !!file && serveCustomAsset(pathname, res, CUSTOM_SPRITE_DIR, file);
 }
 
-// Note: config/testclient-key.js holds a live session token for whoever owns this
-// machine, so it must never be handed to anyone connecting over the LAN/internet -
-// only to requests that are actually local to this machine (loopback). We don't
-// serve it at all, which is the safe default: every visitor falls back to the
-// client's normal manual-login/guest flow instead of being logged into your account.
+// config/testclient-key.js holds a live session token for whoever generated it,
+// so it must never be handed to anyone connecting over the LAN/internet - only
+// to requests actually local to this machine. We don't serve it at all, which is
+// the safe default: every visitor falls back to the client's normal
+// manual-login/guest flow instead of being logged into someone else's account.
+// Enforced by the explicit block in the request handler below, so the guarantee
+// holds whether or not that file happens to exist in the repo.
 
 // Login-server proxy: the real play.pokemonshowdown.com/~~server/action.php calls
 // (username availability checks, login, etc.) are cross-origin from this dev client,
@@ -399,6 +473,13 @@ const NEWS_JSON = JSON.stringify([
 
 const server = http.createServer((req, res) => {
 	console.log(`[REQ] ${req.method} ${req.url}`);
+	// The client build rewrites asset URLs to an absolute path rooted at the site
+	// hostname (see SITE_HOST above), so `/stupidshowdown-web.onrender.com/sprites/...`
+	// arrives here and has to be reduced to `/sprites/...` before any of the
+	// checks below can match it. Done first so reqPath and req.url agree.
+	if (SITE_HOST && req.url.startsWith(`/${SITE_HOST}/`)) {
+		req.url = req.url.slice(SITE_HOST.length + 1);
+	}
 	const reqPath = req.url.split('?')[0]; // request path without the cachebuster query
 	if (CONFIG_DEFAULT_FILES[reqPath] && !fs.existsSync(path.join(configRoot, path.basename(reqPath)))) {
 		console.log(`[RES] 200 ${reqPath} (built-in default)`);
@@ -455,21 +536,24 @@ const server = http.createServer((req, res) => {
 		return;
 	}
 
+	// config/testclient-key.js holds a live login-session token (see the note far
+	// above), so it must never be served. Refused explicitly rather than relying on
+	// the file simply not existing in the repo, so enabling local auto-login can
+	// never accidentally publish that token from a deploy.
+	if (reqPath === '/config/testclient-key.js') {
+		console.log('[RES] 403 /config/testclient-key.js (never served)');
+		res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
+		res.end('Forbidden');
+		return;
+	}
+
 	const isConfig = req.url.startsWith('/config/');
 	const server = isConfig ? configServer : clientServer;
 	if (isConfig) req.url = req.url.slice('/config'.length);
 
-	// The build script rewrites /play.pokemonshowdown.com/... → /stupidshowdown.onrender.com/...
-	// Strip our hostname prefix so the static server can resolve files from clientRoot
-	if (req.url.startsWith('/stupidshowdown.onrender.com/')) {
-		req.url = req.url.slice('/stupidshowdown.onrender.com'.length);
-	}
-
 	// Custom roster art, checked before the upstream proxy below so one of our
-	// species is never answered by play.pokemonshowdown.com's 404. The build
-	// rewrites asset URLs to our own hostname, and some arrive as an absolute path
-	// rooted at it (the static server strips that further down, after this runs).
-	if (tryServeCustomSprite(reqPath.replace(/^\/stupidshowdown\.onrender\.com/, ''), res)) return;
+	// species is never answered by play.pokemonshowdown.com's 404.
+	if (tryServeCustomSprite(reqPath, res)) return;
 
 	// Missing sprites/audio: transparently proxy from Pokémon Showdown's live
 	// server (see UPSTREAM_PREFIXES above for the rationale).
@@ -523,7 +607,8 @@ server.on('error', err => {
 	process.exitCode = 1;
 });
 
-console.log(`[CLIENT-SERVER] waiting for game server on ${GAME_HOST}:${GAME_PORT}...`);
+console.log(`[CLIENT-SERVER] game server ${GAME_HOST}:${gameTransportPort}` +
+	`${GAME_USE_TLS ? ' (tls)' : ''}, waiting for ${GAME_READY_PATH}...`);
 waitForGameServer().then(gameReady => {
 	server.listen(port, () => {
 		console.log(`Client serving at http://localhost:${port}` +
