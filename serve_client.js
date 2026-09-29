@@ -114,6 +114,13 @@ function proxyGameUpgrade(req, clientSocket, head) {
 // and keep the client's built-in placeholder until custom art is added.
 const UPSTREAM_ASSET_HOST = 'play.pokemonshowdown.com';
 const UPSTREAM_PREFIXES = ['/sprites/', '/audio/'];
+// The client repo also ships without sprites/ (see .gitignore), so
+// ./build-tools/build-minidex can't measure animated sprite dimensions and
+// deletes the files it would otherwise have generated. The old client loads
+// data/pokedex-mini.js on every page, so without a fallback it 404s. These two
+// are the only /data/ files built from sprite sizes - everything else in
+// data/ is generated from our own server's dist/ and exists locally.
+const UPSTREAM_FILES = ['/data/pokedex-mini.js', '/data/pokedex-mini-bw.js'];
 // Login server relay: forward /~~<serverid>/action.php to the real login
 // server verbatim (method, body, cookies). Cookies matter: the client stores
 // its session (`sid`) on our origin, and the login server keys sessions off it.
@@ -242,8 +249,35 @@ async function serveActionProxy(req, res) {
 	res.end(body);
 }
 
+// The old client pulls js/oldclient/clean-cookies.php in with a <script> tag.
+// Upstream serves that path through PHP; here it's an ordinary static file, so
+// the browser used to receive raw `<?php` source and die with
+// "Uncaught SyntaxError: Unexpected token '<'". Serve the same
+// oversized-cookie cleanup as JavaScript instead.
+// Ported from play.pokemonshowdown.com/src/oldclient/clean-cookies.php.
+const CLEAN_COOKIES_JS = `(function () {
+	var cleaned = false;
+	var parts = document.cookie ? document.cookie.split(';') : [];
+	for (var i = 0; i < parts.length; i++) {
+		var part = parts[i].trim();
+		var eq = part.indexOf('=');
+		if (eq < 0) continue;
+		if (part.slice(eq + 1).length <= 3000) continue;
+		// A cookie this big means broken settings; it has to go. (The PHP
+		// original also expired copies on pokemonshowdown.com domains, which
+		// a script on our origin can't and shouldn't touch.)
+		document.cookie = part.slice(0, eq) + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+		cleaned = true;
+	}
+	if (cleaned) {
+		alert('You had a cookie which was too big to handle and had to be deleted. If you had cookie settings, they may have been deleted.');
+	}
+})();
+`;
+
 const server = http.createServer((req, res) => {
 	console.log(`[REQ] ${req.method} ${req.url}`);
+	const reqPath = req.url.split('?')[0]; // request path without the cachebuster query
 	if (req.url.startsWith('/actionproxy?')) {
 		serveActionProxy(req, res).catch(err => {
 			console.error(err);
@@ -271,6 +305,17 @@ const server = http.createServer((req, res) => {
 		return void proxyGameHttp(req, res);
 	}
 
+	// Handled before the static server so the raw PHP source is never served.
+	if (reqPath === '/js/oldclient/clean-cookies.php') {
+		console.log('[RES] 200 /js/oldclient/clean-cookies.php (built-in JS)');
+		res.writeHead(200, {
+			'content-type': 'application/javascript; charset=utf-8',
+			'cache-control': 'max-age=0',
+		});
+		res.end(CLEAN_COOKIES_JS);
+		return;
+	}
+
 	const isConfig = req.url.startsWith('/config/');
 	const server = isConfig ? configServer : clientServer;
 	if (isConfig) req.url = req.url.slice('/config'.length);
@@ -283,13 +328,15 @@ const server = http.createServer((req, res) => {
 
 	// Missing sprites/audio: transparently proxy from Pokémon Showdown's live
 	// server (see UPSTREAM_PREFIXES above for the rationale).
-	if (UPSTREAM_PREFIXES.some(prefix => req.url.startsWith(prefix))) {
+	const shouldProxyUpstream = UPSTREAM_PREFIXES.some(prefix => reqPath.startsWith(prefix)) ||
+		UPSTREAM_FILES.includes(reqPath);
+	if (shouldProxyUpstream) {
 		let haveLocal = false;
 		try {
-			haveLocal = fs.statSync(path.join(clientRoot, req.url)).isFile();
+			haveLocal = fs.statSync(path.join(clientRoot, reqPath)).isFile();
 		} catch {}
 		if (!haveLocal) {
-			console.log(`[PROXY] ${req.url} -> ${UPSTREAM_ASSET_HOST}`);
+			console.log(`[PROXY] ${reqPath} -> ${UPSTREAM_ASSET_HOST}`);
 			return void serveUpstream(req, res);
 		}
 	}

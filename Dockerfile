@@ -29,9 +29,17 @@ COPY . .
 # Copying after `COPY . .` so this wins over Render's synced submodule copy.
 COPY client-patches/build-tools/ ./StupidShowdownClient/build-tools/
 
-# Write production client config — points WebSocket at our own game server
-RUN printf '%s\n' \
-    'var Config = Config || {};' \
+# Write production client config — start from the shipped example so every
+# property the client expects (Config.customcolors, Config.whitelist,
+# Config.bannedHosts, ...) is defined, then append only our own server. Writing
+# a config from scratch used to drop Config.customcolors, which
+# BattleLog.usernameColor() reads on startup — the resulting TypeError aborted
+# `new App()` before the client could connect at all.
+# `node build` appends its generated Config.routes block to whatever is here.
+RUN cp StupidShowdownClient/config/config-example.js StupidShowdownClient/config/config.js && \
+    printf '%s\n' \
+    '' \
+    '// StupidShowdown: talk to our own game server, not the official one.' \
     'Config.defaultserver = {' \
     '  id: "stupidshowdown",' \
     '  host: "stupidshowdown.onrender.com",' \
@@ -40,7 +48,7 @@ RUN printf '%s\n' \
     '  altport: 80,' \
     '  registered: true' \
     '};' \
-    > StupidShowdownClient/config/config.js
+    >> StupidShowdownClient/config/config.js
 
 # Override routes so asset URLs are rewritten to our domain (not play.pokemonshowdown.com)
 RUN printf '%s\n' \
