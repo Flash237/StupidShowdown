@@ -116,8 +116,13 @@ exports.subprocesses = {
 	validator: 1,
 	/** for user authentication */
 	verifier: 1,
-	localartemis: 1,
-	remoteartemis: 1,
+	// StupidShowdown: neither Artemis classifier can run in this deployment -
+	// there's no `perspectiveKey` for the remote (Perspective API) one, and the
+	// Docker image ships no python3 or local model install - so their two
+	// workers just idle at ~33MB PSS inside the 512MB free-tier container.
+	// Set back to 1 if a key/model is ever provisioned.
+	localartemis: 0,
+	remoteartemis: 0,
 	friends: 1,
 	chatdb: 1,
 	modlog: 1,
