@@ -77,20 +77,6 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 		banlist: ['Uber', 'AG', 'Stupid', 'Arena Trap', 'Moody', 'Shadow Tag', 'King\'s Rock', 'Razor Fang', 'Baton Pass', 'Last Respects', 'Shed Tail', 'Tera Blast'],
 	},
 	{
-		// The custom-mon tier: StupidShowdown's homebrew species (Nahida, Vergil,
-		// Godzilla, Ghidorah, etc.) all carry tier: "Stupid" in formats-data.ts.
-		// Sits above OU (banned there, same as Uber) but - like Ubers - doesn't
-		// itself ban Uber, so real Ubers-tier legends can be used alongside them.
-		// +Past/+Unobtainable: this is a homebrew tier, not bound by what's
-		// actually obtainable in real Gen 9 - lets old HM-era moves like Cut
-		// (tagged Unobtainable, not Past, since it was fully removed from the
-		// game rather than just missing from gen 9's movepool) show up.
-		name: "[Gen 9] Stupid",
-		mod: 'gen9',
-		ruleset: ['Standard', '+Past', '+Unobtainable'],
-		banlist: ['AG', 'Moody', 'King\'s Rock', 'Razor Fang', 'Baton Pass', 'Last Respects'],
-	},
-	{
 		name: "[Gen 9] Ubers",
 		mod: 'gen9',
 		ruleset: ['Standard'],
@@ -191,16 +177,20 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 		banlist: ['DUber', 'Shadow Tag', 'Commander'],
 	},
 	{
-		// Dedicated doubles counterpart to [Gen 9] Stupid: same ruleset as
-		// Doubles OU (Stupid-tier custom mons were already unaffected by
-		// Doubles OU's banlist, since that only checks doublesTier/DUber, not
-		// the singles Stupid tag) - this just gives it its own clear name.
-		// +Past/+Unobtainable: see [Gen 9] Stupid above.
-		name: "[Gen 9] Stupid Doubles",
+		// The custom-mon tier: StupidShowdown's homebrew species (Nahida, Vergil,
+		// Godzilla, Ghidorah, etc.) all carry tier: "Stupid" in formats-data.ts.
+		// This format is doubles - the roster is built for 2v2. Sits above OU
+		// (banned there, same as Uber) but - like Ubers - doesn't itself ban
+		// Uber, so real Ubers-tier legends can be used alongside them.
+		// +Past/+Unobtainable: this is a homebrew tier, not bound by what's
+		// actually obtainable in real Gen 9 - lets old HM-era moves like Cut
+		// (tagged Unobtainable, not Past, since it was fully removed from the
+		// game rather than just missing from gen 9's movepool) show up.
+		name: "[Gen 9] Stupid",
 		mod: 'gen9',
 		gameType: 'doubles',
 		ruleset: ['Standard Doubles', 'Evasion Abilities Clause', '+Past', '+Unobtainable'],
-		banlist: ['DUber', 'Shadow Tag', 'Commander'],
+		banlist: ['AG', 'Moody', 'King\'s Rock', 'Razor Fang', 'Baton Pass', 'Last Respects'],
 	},
 	{
 		name: "[Gen 9] Doubles Ubers",
