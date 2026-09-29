@@ -88,6 +88,15 @@ RUN printf '%s\n' \
 COPY client-patches/sprites/ ./StupidShowdownClient/play.pokemonshowdown.com/sprites/
 COPY client-patches/audio/ ./StupidShowdownClient/play.pokemonshowdown.com/audio/
 
+# build-tools/update compiles the server's chat-formatter.ts - which defines
+# the global formatText() that battle-log's parseMessage calls - out of
+# caches/pokemon-showdown/, upstream's "checkout of the server repo" (see
+# StupidShowdownClient/caches/README.md). No checkout ships in the image, so
+# the compile silently produced no formatText: every chat/PM/popup render
+# threw "formatText is not defined". This repo IS the server repo, so link it
+# instead of cloning (also picks up this fork's own server sources).
+RUN ln -s ../.. StupidShowdownClient/caches/pokemon-showdown
+
 # Build server TypeScript first (client full build reads from dist/sim/dex)
 RUN npm run build
 # 'full' generates all data/*.js files (pokedex, abilities, moves, etc.) from server data
