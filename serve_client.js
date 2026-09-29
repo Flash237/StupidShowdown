@@ -175,14 +175,100 @@ function serveUpstream(req, res) {
 	req.on('error', () => upstream.destroy());
 }
 
-// config/testclient-key.js holds a live session token for whoever owns this machine.
-// It must never be handed to anyone connecting over the LAN/internet - only requests
-// that are actually local to this machine (loopback) get it. Everyone else falls back
-// to the client's normal manual-login/guest flow instead of being logged into your account.
-const LOOPBACK_ADDRESSES = ['127.0.0.1', '::1', '::ffff:127.0.0.1'];
-function isLoopback(req) {
-	return LOOPBACK_ADDRESSES.includes(req.socket.remoteAddress || '');
+// Custom art for this fork's roster.
+//
+// The client asks for sprites by three fixed names - sprites/home-centered/<id>.png
+// for the teambuilder, sprites/gen5/<id>.png and sprites/gen5-back/<id>.png in
+// battle - plus the *-shiny variant of each. The art we have is whatever the
+// artist exported (png, webp, jpeg, avif), so rather than renaming files to .png
+// and lying about their type, we index what's actually on disk under
+// client-patches/sprites/ and answer any of those requests from the real file
+// with the Content-Type matching its real extension. That's not cosmetic: these
+// are CSS background-images, and a background-image whose bytes are WebP but
+// whose Content-Type says image/png is silently dropped by the browser.
+//
+// The index is keyed by filename stem, so `custom/nilou.png` answers
+// `home-centered/nilou.png` and `custom/nilou-shiny.png` answers
+// `home-centered-shiny/nilou.png`. Built once at startup - the art is baked into
+// the image. Note this reads client-patches/ directly (present in the image via
+// the Dockerfile's `COPY . .`), so it behaves the same locally and in Docker.
+const CUSTOM_ASSET_ROOT = path.resolve(__dirname, 'client-patches/sprites');
+const CUSTOM_SPRITE_DIR = path.join(CUSTOM_ASSET_ROOT, 'custom');
+const CUSTOM_ITEMICON_DIR = path.join(CUSTOM_ASSET_ROOT, 'itemicons');
+const IMAGE_MIME_TYPES = {
+	'.png': 'image/png',
+	'.gif': 'image/gif',
+	'.webp': 'image/webp',
+	'.jpg': 'image/jpeg',
+	'.jpeg': 'image/jpeg',
+	'.avif': 'image/avif',
+	'.svg': 'image/svg+xml',
+};
+
+function indexAssets(dir) {
+	const index = new Map();
+	let entries;
+	try {
+		entries = fs.readdirSync(dir);
+	} catch {
+		return index; // directory is optional: it only holds art we may not have
+	}
+	for (const entry of entries) {
+		if (entry.startsWith('.') || /\.md$/i.test(entry)) continue;
+		const dot = entry.lastIndexOf('.');
+		if (dot <= 0) continue;
+		index.set(entry.slice(0, dot).toLowerCase(), entry);
+	}
+	return index;
 }
+
+const customSprites = indexAssets(CUSTOM_SPRITE_DIR);
+const customItemIcons = indexAssets(CUSTOM_ITEMICON_DIR);
+console.log(`[CLIENT-SERVER] custom sprites: ${customSprites.size}, custom item icons: ${customItemIcons.size}`);
+
+// Returns false if the file isn't there after all (so the caller can fall back).
+function serveCustomAsset(reqPath, res, dir, file) {
+	const filename = path.join(dir, file);
+	let size;
+	try {
+		size = fs.statSync(filename).size;
+	} catch {
+		return false;
+	}
+	console.log(`[CUSTOM] ${reqPath} -> ${path.relative(CUSTOM_ASSET_ROOT, filename)}`);
+	res.writeHead(200, {
+		'content-type': IMAGE_MIME_TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
+		// Upstream's own sprites go out without one; the client's cachebusters do
+		// the invalidating, and a wrong length would truncate the image.
+		'content-length': size,
+		'cache-control': 'max-age=0',
+	});
+	fs.createReadStream(filename).on('error', () => res.end()).pipe(res);
+	return true;
+}
+
+// Returns true when the request was one of ours and has been handled.
+function tryServeCustomSprite(pathname, res) {
+	const match = /^\/sprites\/([^/]+)\/([^/]+)\.(?:png|gif|webp|jpe?g|avif|svg)$/.exec(pathname);
+	if (!match) return false;
+	const [, spriteDir, spriteName] = match;
+	const name = spriteName.toLowerCase();
+	if (spriteDir === 'itemicons') {
+		const file = customItemIcons.get(name);
+		return !!file && serveCustomAsset(pathname, res, CUSTOM_ITEMICON_DIR, file);
+	}
+	// `home-centered-shiny` / `gen5-shiny` name the same id as the plain
+	// directory does; take the artist's shiny export when there is one.
+	const file = (spriteDir.endsWith('-shiny') && customSprites.get(`${name}-shiny`)) ||
+		customSprites.get(name);
+	return !!file && serveCustomAsset(pathname, res, CUSTOM_SPRITE_DIR, file);
+}
+
+// Note: config/testclient-key.js holds a live session token for whoever owns this
+// machine, so it must never be handed to anyone connecting over the LAN/internet -
+// only to requests that are actually local to this machine (loopback). We don't
+// serve it at all, which is the safe default: every visitor falls back to the
+// client's normal manual-login/guest flow instead of being logged into your account.
 
 // Login-server proxy: the real play.pokemonshowdown.com/~~server/action.php calls
 // (username availability checks, login, etc.) are cross-origin from this dev client,
@@ -378,6 +464,12 @@ const server = http.createServer((req, res) => {
 	if (req.url.startsWith('/stupidshowdown.onrender.com/')) {
 		req.url = req.url.slice('/stupidshowdown.onrender.com'.length);
 	}
+
+	// Custom roster art, checked before the upstream proxy below so one of our
+	// species is never answered by play.pokemonshowdown.com's 404. The build
+	// rewrites asset URLs to our own hostname, and some arrive as an absolute path
+	// rooted at it (the static server strips that further down, after this runs).
+	if (tryServeCustomSprite(reqPath.replace(/^\/stupidshowdown\.onrender\.com/, ''), res)) return;
 
 	// Missing sprites/audio: transparently proxy from Pokémon Showdown's live
 	// server (see UPSTREAM_PREFIXES above for the rationale).

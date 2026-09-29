@@ -36,6 +36,9 @@ COPY client-patches/build-tools/ ./StupidShowdownClient/build-tools/
 # BattleLog.usernameColor() reads on startup — the resulting TypeError aborted
 # `new App()` before the client could connect at all.
 # `node build` appends its generated Config.routes block to whatever is here.
+# client-config-extra.js is then appended too: it's the client-side hook that
+# points the two custom items at their own icon files instead of cell 0 of the
+# shared itemicons sheet (see that file, and client-patches/sprites/README.md).
 RUN cp StupidShowdownClient/config/config-example.js StupidShowdownClient/config/config.js && \
     printf '%s\n' \
     '' \
@@ -48,7 +51,8 @@ RUN cp StupidShowdownClient/config/config-example.js StupidShowdownClient/config
     '  altport: 80,' \
     '  registered: true' \
     '};' \
-    >> StupidShowdownClient/config/config.js
+    >> StupidShowdownClient/config/config.js && \
+    cat client-patches/client-config-extra.js >> StupidShowdownClient/config/config.js
 
 # Override routes so asset URLs are rewritten to our domain (not play.pokemonshowdown.com)
 RUN printf '%s\n' \
@@ -61,6 +65,17 @@ RUN printf '%s\n' \
     '  "teams": "teams.pokemonshowdown.com"' \
     '}' \
     > StupidShowdownClient/config/routes.json
+
+# Overlay custom-mon art into the client tree, alongside the audio below.
+# serve_client.js answers sprite requests out of client-patches/sprites/ directly,
+# so nothing depends on this copy - it's kept so the art also exists at the paths
+# the client itself expects, which is where a future ./build-tools/build-minidex
+# run (for animated gifs in sprites/ani/) and any offline tooling would look.
+# Expected filenames: client-patches/sprites/README.md
+# Each directory must exist in git (they hold a README), because COPY fails on
+# a missing source.
+COPY client-patches/sprites/ ./StupidShowdownClient/play.pokemonshowdown.com/sprites/
+COPY client-patches/audio/ ./StupidShowdownClient/play.pokemonshowdown.com/audio/
 
 # Build server TypeScript first (client full build reads from dist/sim/dex)
 RUN npm run build
