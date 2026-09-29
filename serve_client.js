@@ -53,31 +53,65 @@ const port = process.env.PORT || 8080;
 const GAME_HOST = process.env.GAMEHOST || '127.0.0.1';
 const GAME_PORT = Number(process.env.GAMEPORT) || 8000;
 const GAME_USE_TLS = GAME_HOST !== '127.0.0.1' && GAME_HOST !== 'localhost';
+// Free-tier spin-down only applies between services: a game process spawned by
+// our own CMD sleeps when we sleep.
+const GAME_CAN_SLEEP = GAME_USE_TLS;
 const gameTransportPort = GAME_USE_TLS ? 443 : GAME_PORT;
 
-function proxyGameHttp(req, res) {
+// Returns the upstream response, or null if the request failed to get one at
+// all (connection refused/reset - e.g. the game service was asleep).
+function makeGameRequest(req, headers) {
+	return new Promise(resolve => {
+		const proxied = (GAME_USE_TLS ? https : http).request({
+			host: GAME_HOST,
+			port: gameTransportPort,
+			path: req.url,
+			method: req.method,
+			headers,
+		}, proxyRes => resolve(proxyRes));
+		proxied.on('error', err => {
+			console.error(`[GAMESRV-ERROR] ${req.method} ${req.url}: ${err.message}`);
+			resolve(null);
+		});
+		req.on('aborted', () => proxied.destroy());
+		// GETs carry no SockJS body, and they're the only requests that might be
+		// replayed after a failed attempt (see proxyGameHttp) - so a POST pipes
+		// its body through and can never be retried.
+		if (req.method === 'GET') {
+			proxied.end();
+		} else {
+			req.pipe(proxied);
+		}
+	});
+}
+
+async function proxyGameHttp(req, res) {
 	const headers = { ...req.headers };
 	delete headers.connection; // hop-by-hop; let Node manage keep-alive
 	// Render's edge routes by Host header, so going out to another service over
 	// its public hostname means saying so - not echoing whatever domain the
 	// browser used to reach us.
 	if (GAME_USE_TLS) headers.host = GAME_HOST;
-	const proxied = (GAME_USE_TLS ? https : http).request({
-		host: GAME_HOST,
-		port: gameTransportPort,
-		path: req.url,
-		method: req.method,
-		headers,
-	}, proxyRes => {
-		res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
-		proxyRes.pipe(res); // stream: SockJS xhr-streaming responses never "end" early
-	});
-	proxied.on('error', err => {
-		console.error(`[GAMESRV-ERROR] ${req.url}: ${err.message}`);
+
+	let proxyRes = await makeGameRequest(req, headers);
+	// While a free-tier game service spins back up, its edge can answer 502/503
+	// or drop the connection instead of holding the request. For a GET (every
+	// SockJS streaming/polling transport request), wait out the wake and replay
+	// once before passing the failure through, so a reconnecting client
+	// recovers instead of dying on its first request after the game slept.
+	if (GAME_CAN_SLEEP && req.method === 'GET' &&
+		(proxyRes === null || proxyRes.statusCode === 502 || proxyRes.statusCode === 503)) {
+		if (proxyRes) proxyRes.resume(); // release the failed response's socket
+		if (await waitForGameWake()) proxyRes = await makeGameRequest(req, headers);
+	}
+	if (!proxyRes || res.destroyed) {
+		if (proxyRes) proxyRes.destroy();
 		if (!res.headersSent) res.writeHead(502);
 		res.end('Game server unavailable');
-	});
-	req.pipe(proxied);
+		return;
+	}
+	res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+	proxyRes.pipe(res); // stream: SockJS xhr-streaming responses never "end" early
 }
 
 // The game server needs several seconds to load all battle data and bind its
@@ -122,18 +156,16 @@ function probeGameServer() {
 	});
 }
 
-function waitForGameServer() {
-	const timeout = Number(process.env.GAME_READY_TIMEOUT) || 180000;
+// Retry probeGameServer until it answers or the timeout elapses.
+function waitForGameProbe(timeoutMs) {
 	const startedAt = Date.now();
 	return new Promise(resolve => {
 		const attempt = async () => {
 			if (await probeGameServer()) {
-				console.log(`[GAMESRV] answering ${GAME_READY_PATH} after ${Date.now() - startedAt}ms`);
 				resolve(true);
 				return;
 			}
-			if (Date.now() - startedAt >= timeout) {
-				console.error(`[GAMESRV] still not answering ${GAME_READY_PATH} after ${timeout}ms; serving anyway`);
+			if (Date.now() - startedAt >= timeoutMs) {
 				resolve(false);
 				return;
 			}
@@ -141,6 +173,61 @@ function waitForGameServer() {
 		};
 		void attempt();
 	});
+}
+
+async function waitForGameServer() {
+	const timeout = Number(process.env.GAME_READY_TIMEOUT) || 180000;
+	const startedAt = Date.now();
+	const ready = await waitForGameProbe(timeout);
+	if (ready) {
+		console.log(`[GAMESRV] answering ${GAME_READY_PATH} after ${Date.now() - startedAt}ms`);
+	} else {
+		console.error(`[GAMESRV] still not answering ${GAME_READY_PATH} after ${timeout}ms; serving anyway`);
+	}
+	return ready;
+}
+
+// Wait out a free-tier spin-down: probe until the game answers, or give up so
+// the caller can pass its own failure through. Capped well below what a
+// browser would wait, and only ever entered for GETs (see proxyGameHttp).
+async function waitForGameWake() {
+	const timeout = Number(process.env.GAME_WAKE_TIMEOUT) || 90000;
+	const startedAt = Date.now();
+	const woke = await waitForGameProbe(timeout);
+	console.log(`[GAMESRV] wake wait ${woke ? 'succeeded' : 'timed out'} after ${Date.now() - startedAt}ms`);
+	return woke;
+}
+
+// Free-tier Render services spin down after 15 minutes without inbound
+// requests, and each service counts independently: visitor traffic keeps this
+// web service awake, but the game service only ever sees the traffic this
+// proxy forwards - and when the last tab closes, even that stops. A game
+// service that sleeps while someone still has the client open kills their
+// SockJS connection mid-session ("You have been disconnected").
+//
+// So in split mode, poll the game server's /info endpoint every few minutes:
+// a real HTTP request is what resets Render's idle timer (see the boot wait
+// above), and four minutes against a fifteen-minute idle timeout never gets
+// close to letting it fire. Failed probes (deploy in progress, crash) are
+// retried on a short interval until the game answers. The env overrides exist
+// so tests can shrink the intervals; production uses the defaults.
+const GAME_KEEPALIVE_MS = Number(process.env.GAME_KEEPALIVE_MS) || 4 * 60 * 1000;
+const GAME_KEEPALIVE_RETRY_MS = Number(process.env.GAME_KEEPALIVE_RETRY_MS) || 15 * 1000;
+
+function startGameKeepalive() {
+	if (!GAME_CAN_SLEEP) return; // same-container game process: nothing to keep warm
+	// One tick at a time by construction: the next tick is only ever scheduled
+	// from inside the previous one, after its probe has finished.
+	const tick = async () => {
+		const healthy = await probeGameServer();
+		if (!healthy) {
+			console.error('[GAMESRV] keepalive: game server not answering; retrying');
+			setTimeout(() => void tick(), GAME_KEEPALIVE_RETRY_MS);
+			return;
+		}
+		setTimeout(() => void tick(), GAME_KEEPALIVE_MS);
+	};
+	setTimeout(() => void tick(), GAME_KEEPALIVE_MS);
 }
 
 function proxyGameUpgrade(req, clientSocket, head) {
@@ -161,8 +248,44 @@ function proxyGameUpgrade(req, clientSocket, head) {
 		}
 		upstream.write(lines.join('\r\n') + '\r\n\r\n');
 		if (head.length) upstream.write(head);
-		clientSocket.pipe(upstream);
-		upstream.pipe(clientSocket);
+		// Don't pipe blindly: if the connection didn't reach the game's SockJS
+		// endpoint, whatever answers first (Render's edge while the game service
+		// is asleep or restarting) speaks plain HTTP, not the websocket
+		// protocol. Forwarding those bytes just surfaces as a browser-side
+		// websocket failure; failing fast here makes SockJS fall back to its
+		// HTTP transports immediately, which the proxy above can wake-wait for.
+		// Buffer until the full response head is in hand: TCP can split it, and
+		// judging "HTTP/1.1 101 Swi" would be premature. A real handshake
+		// response starts "HTTP/1.1 101".
+		let handshake = Buffer.alloc(0);
+		const onHandshakeData = chunk => {
+			handshake = Buffer.concat([handshake, chunk]);
+			const headEnd = handshake.toString('latin1').indexOf('\r\n\r\n');
+			if (headEnd === -1) {
+				if (handshake.length > 16384) {
+					console.error(`[GAMESRV-WS-ERROR] ${req.url}: oversized handshake response`);
+					upstream.destroy();
+					clientSocket.destroy();
+				}
+				return;
+			}
+			upstream.removeListener('data', onHandshakeData);
+			if (!/^HTTP\/1\.[01] 101 /.test(handshake.toString('latin1'))) {
+				console.error(`[GAMESRV-WS-ERROR] ${req.url}: non-101 handshake response`);
+				upstream.destroy();
+				// Answer with a real HTTP 502 instead of just closing: a clean
+				// response lets SockJS give up on websocket and move to its HTTP
+				// transports right away, while an abrupt close looks like a
+				// network failure and costs it a timeout.
+				clientSocket.end('HTTP/1.1 502 Bad Gateway\r\n' +
+					'connection: close\r\ncontent-length: 0\r\n\r\n');
+				return;
+			}
+			clientSocket.write(handshake);
+			clientSocket.pipe(upstream);
+			upstream.pipe(clientSocket);
+		};
+		upstream.on('data', onHandshakeData);
 	});
 	upstream.on('error', err => {
 		console.error(`[GAMESRV-WS-ERROR] ${req.url}: ${err.message}`);
@@ -580,10 +703,19 @@ const server = http.createServer((req, res) => {
 		}
 	}
 
-	if (req.url === '/' || req.url === '' || req.url === '/index.html') {
+	// The client is a single-page app using HTML5 pushState room URLs like
+	// /battle-gen9stupid-123 (see useHistory in client.js). Upstream's Apache
+	// config rewrites exactly those paths (a single [A-Za-z0-9-]* segment, no
+	// dots) to the client HTML; nothing here did, so recovering a dropped
+	// connection in place - the Reconnect popup is just
+	// document.location.reload() - reloaded the room URL and 404'd. Serve the
+	// client HTML for those paths too: the client bootstraps into whatever
+	// room it was loaded at. Paths with an extension or a second segment stay
+	// ordinary file lookups.
+	if (reqPath === '' || reqPath === '/index.html' || /^\/(?:[A-Za-z0-9][A-Za-z0-9-]*)?$/.test(reqPath)) {
 		// Build script outputs the processed HTML to caches/index-old.html
 		clientServer.serveFile('/caches/index-old.html', 200, {}, req, res).then(result => {
-			console.log(`[RES] ${result?.status} / (caches/index-old.html)`);
+			console.log(`[RES] ${result?.status} ${reqPath || '/'} (caches/index-old.html)`);
 		}).catch(err => {
 			console.error(err);
 			res.writeHead(500);
@@ -623,5 +755,6 @@ waitForGameServer().then(gameReady => {
 	server.listen(port, () => {
 		console.log(`Client serving at http://localhost:${port}` +
 			(gameReady ? '' : ' (game server never came up)'));
+		startGameKeepalive();
 	});
 });
