@@ -117,6 +117,25 @@ RUN mkdir -p /app/logs/repl
 ENV PORT=10000
 ENV NODE_ENV=production
 
+# Render's free tier gives one 512MB container per service and kills it the
+# moment it crosses that line, with no warning and no metrics. Node has no
+# option that caps a whole cgroup, so the next best thing is a ceiling on every
+# process's V8 heap: with a cap, GC collects validation/battle bursts early
+# instead of letting one worker balloon until the kernel OOM killer takes the
+# whole container down. Workers are forked with the parent's environment (see
+# lib/process-manager.ts), so this reaches all of them. `--max-semi-space-size=8`
+# halves the young generation (default 16MB on 64-bit) to lower each process's
+# RSS floor, at the cost of more frequent - and slower - minor GCs.
+#
+# render.yaml overrides this per service (its env vars win over image ENV): the
+# game service gets the same 128 and a 320MB command-line cap on its launcher,
+# the web service gets 256. This default is what applies if a service's
+# dashboard has no NODE_OPTIONS of its own. Note the builder stage above is
+# deliberately left uncapped - `npm run build`, `node build full` and the client
+# build all need far more than this, and only the runtime image is
+# memory-constrained. That's also why the CMD below passes `--skip-build`.
+ENV NODE_OPTIONS="--max-old-space-size=128 --max-semi-space-size=8"
+
 EXPOSE 10000
 
 # Start both servers: game server on 8000 (background) and client proxy on $PORT

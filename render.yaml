@@ -17,6 +17,12 @@ services:
       # the game service over its public HTTPS endpoint instead.
       - key: GAMEHOST
         value: stupidshowdown-game.onrender.com
+      # This service is one lean process (static files + proxy) that has to stay
+      # up for anyone to reach the game server at all, so bound it rather than
+      # letting a runaway buffer take the whole thing down. It sits around 50MB
+      # in practice; 256MB is pure headroom.
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=256
 
   # Not directly visited by players. Runs only the battle simulator/server,
   # in its own container with its own independent 512MB memory budget - this
@@ -30,16 +36,34 @@ services:
     # fixed below (envVars PORT), so it's spelled out here directly: Render
     # mangles quoted dockerCommands - a `sh -c "..."` form reached the shell as
     # one quoted word and died with "... : not found" (exit 127).
-    dockerCommand: node pokemon-showdown start --skip-build 10000
+    # The parent process gets a roomier heap than its workers do: it is the one
+    # process whose death takes the whole service down, and it holds the chat
+    # rooms, user table and every player's TeamValidator results. Command-line
+    # flags win over NODE_OPTIONS, so this overrides the cap below for the
+    # launcher only - workers are forked by ProcessManager and inherit
+    # NODE_OPTIONS from the environment instead of this command line.
+    dockerCommand: node --max-old-space-size=320 pokemon-showdown start --skip-build 10000
     plan: free
     envVars:
       - key: PORT
         value: 10000
       # Free tier shows no memory metrics and kills the container the moment it
-      # crosses 512MB, so bound each worker's V8 heap instead of letting any one
-      # process balloon into the kernel OOM killer: with a cap, GC trims
-      # validation/battle bursts first. 192MB clears the heaviest worker's
-      # measured peak (team-validator ~149MB RSS) with margin. Crashed workers
-      # are auto-respawned by the ProcessManager (max 5 per 30min).
+      # crosses 512MB, so bound each *worker's* V8 heap instead of letting one
+      # of them balloon into the kernel OOM killer: with a cap, GC trims
+      # validation/battle bursts first, at the cost of running more often.
+      #
+      # This is a per-process cap, not a container cap - there is no Node option
+      # that limits a whole cgroup. What keeps the container under 512MB is that
+      # every process now has a ceiling: idle the game service measures ~198MB
+      # PSS across ~6 processes, and the heaviest single worker (team-validator)
+      # peaked at ~150MB RSS with 63MB of it live heap during a doubles battle.
+      # 128MB old-space is ~2x that live-heap peak, and --max-semi-space-size=8
+      # halves the young generation (default 16MB) so each worker's RSS floor
+      # drops too, trading a little speed for headroom.
+      #
+      # A worker that does hit the cap dies with a clean "heap out of memory"
+      # line and is auto-respawned by the ProcessManager (max 5 crashes per
+      # 30min), which is a far better failure mode than the kernel OOM killer
+      # taking the whole container down mid-battle.
       - key: NODE_OPTIONS
-        value: --max-old-space-size=192
+        value: --max-old-space-size=128 --max-semi-space-size=8
