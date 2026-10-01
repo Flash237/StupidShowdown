@@ -8,15 +8,15 @@ This is **StupidShowdown**, a personal fork of [Pokémon Showdown](https://githu
 
 - Custom formats/tiers such as `[Gen 9 Champions]`, `35 Pokes`, `Artemis` (a mod), and hypothetical future metagame shifts (tier lists dated into 2026) — these live in `config/formats.ts` and `data/mods/`.
 - A handful of custom crossover "fakemon" (e.g. `vergil`, `nahida`, `jetstreamsam`, `nilou`) added directly into `data/pokedex.ts`, `data/learnsets.ts`, and `data/formats-data.ts` with dex numbers starting at `10002+`.
-- `StupidShowdownClient/` — a full, separately git-tracked checkout of the [pokemon-showdown-client](https://github.com/smogon/pokemon-showdown-client) repo, nested inside this working directory. It has its own `.git`, `package.json`, build, and lint config. Treat it as a distinct project; don't run the server repo's `npm` scripts expecting them to touch it.
-- `ai-coder-resources/` — a scratch folder of source art/audio for the custom fakemon (and some unrelated assets), not wired into the build. Not to be confused with a build input; nothing under `data/` or `StupidShowdownClient/` reads from it automatically.
-- Root-level helper scripts outside the upstream project: `serve_client.js` (serves the built client via `lib/static-server` on port 8080, for local testing without the Apache-based client setup) and `index.js` (placeholder, not a real entry point). `tools/build-utils.js` has one local patch: it excludes `StupidShowdownClient` from the server's own TS/JS compile walk.
+- **This branch is the game server only.** The web client lives on the sibling `client` branch of this repository (a `StupidShowdownClient/` submodule of [pokemon-showdown-client](https://github.com/smogon/pokemon-showdown-client) plus a `client-patches/` overlay that is applied at build time). Don't look for client code here, and keep client-only changes on that branch.
+- `ai-coder-resources/` — a scratch folder of source art/audio for the custom fakemon (and some unrelated assets), not wired into the build. Nothing under `data/` reads from it automatically.
+- Root-level helper scripts outside the upstream project: `index.js` (placeholder, not a real entry point).
 
 When making changes, prefer following upstream Pokémon Showdown conventions (see `CONTRIBUTING.md`) even for custom content, since custom formats/mons are added the same way upstream expects contributors to add them.
 
 ## Common commands
 
-Run these from the repo root (this is the server, not `StupidShowdownClient`).
+Run these from the repo root (this branch is the server; the web client is on the `client` branch).
 
 - `node build` — compile TypeScript/transpile into `dist/`. Needed after pulling changes or editing `.ts` files; the server auto-runs this on `start` unless `--skip-build` is passed. `node build --force` if the incremental build gets into a bad state.
 - `node pokemon-showdown start [--skip-build] [PORT]` — start the game server (default port from `config/config.js`, itself default 8000). `config/config.js` is auto-created from `config/config-example.js` on first build if missing.
@@ -26,9 +26,13 @@ Run these from the repo root (this is the server, not `StupidShowdownClient`).
 - `npm run lint` / `npm run fix` — ESLint check / autofix (config in `eslint.config.mjs`, house style in `eslint-ps-standard.mjs`).
 - `npm run tsc` — typecheck only, no emit.
 - Other CLI subcommands (`generate-team`, `validate-team`, `simulate-battle`, `json-team`, `pack-team`, `export-team`) are documented in `COMMANDLINE.md`; run via `node pokemon-showdown <subcommand>`.
-- `node serve_client.js` — serve the (already-built) `StupidShowdownClient/play.pokemonshowdown.com` directory on `http://localhost:8080` for local UI testing.
 
 Windows note: replace every `./pokemon-showdown` / `./build` from upstream docs with `node pokemon-showdown` / `node build`.
+
+## Deployment
+
+- **Server (this branch):** the `Dockerfile` builds a server-only image (written for Google Cloud Run, which injects `PORT`). Upstream's `cloud-env` PORT autodetect also still works if you run the server with no port argument.
+- **Client:** built from the `client` branch and hosted separately; nothing on this branch serves client files.
 
 ## Architecture
 

@@ -1,13 +1,7 @@
 node_modules
 dist
-StupidShowdownClient/node_modules
-StupidShowdownClient/dist
 .git
 .idea
 .vscode
-# Reference drop of the original art exports; the files that are actually served
-# live in client-patches/sprites/ and client-patches/audio/. Only here to keep
-# 10MB out of every build context.
-assets.zip
 logs
 *.log
