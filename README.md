@@ -1,99 +1,72 @@
-Pokémon Showdown
+StupidShowdown Client
 ========================================================================
 
-Navigation: [Website][1] | **Server repository** | [Client repository][2] | [Dex repository][3]
+This branch is the **web client** for StupidShowdown. The game server, battle
+simulator and game data live on the sibling
+[`server`](https://github.com/Flash237/StupidShowdown/tree/server) branch of
+this repository; nothing here simulates battles or serves them.
 
-  [1]: http://pokemonshowdown.com/
-  [2]: https://github.com/smogon/pokemon-showdown-client
-  [3]: https://github.com/Zarel/Pokemon-Showdown-Dex
-
-[![Build Status](https://github.com/smogon/pokemon-showdown/workflows/Node.js%20CI/badge.svg)](https://github.com/smogon/pokemon-showdown/actions?query=workflow%3A%22Node.js+CI%22)
-[![Dependency Status](https://img.shields.io/librariesio/github/smogon/pokemon-showdown)](https://libraries.io/github/smogon/pokemon-showdown)
-
-
-Introduction
+Layout
 ------------------------------------------------------------------------
 
-Pokémon Showdown is many things:
+- `StupidShowdownClient/` — git submodule pinned to upstream
+  [smogon/pokemon-showdown-client](https://github.com/smogon/pokemon-showdown-client).
+  The client is *not* forked, so it stays mergeable with upstream.
+- `client-patches/` — everything this fork adds to that checkout:
+  - `build-tools/` — our replacements for the client's build tools. Upstream's
+    clone and build the game server to produce the client's dex/learnsets;
+    ours read that data from the server's build output instead, which is what
+    makes the custom Pokémon, moves, items and formats show up in the client.
+  - `src/battle-dex-search.ts` — client source override.
+  - `sprites/` — custom battle art, party icons and item icons
+    (expected filenames: `sprites/README.md`).
+  - `audio/` — custom cries (README only so far).
+  - `client-config-extra.js` — appended to `config/config.js`; teaches the
+    client's Dex to serve the custom item and species icons from their own
+    files instead of cell 0 of the shared sheets. Its header comment explains
+    the two bugs it fixes.
+- `assets.zip` — source art exports for the custom roster. Nothing reads it at
+  build time; the served art is what's in `client-patches/sprites/`.
+- `setup-config.js` — generates the client's `config/config.js` and
+  `config/routes.json` for a given deployment.
 
-- A **web site** you can use for Pokémon battling
-
-  - http://pokemonshowdown.com/
-
-- A **JavaScript library** for simulating Pokémon battles and getting Pokédex data
-
-  - [sim/README.md](./sim/README.md)
-
-- Some **command-line tools** for simulating Pokémon battles (which can be used in non-JavaScript programs)
-
-  - [COMMANDLINE.md](./COMMANDLINE.md)
-
-- A **web API** for the web site for Pokémon battling
-
-  - [pokemon-showdown-client: WEB-API.md](https://github.com/smogon/pokemon-showdown-client/blob/master/WEB-API.md)
-
-- A **game server** for hosting your own Pokémon Showdown community and game modes
-
-  - [server/README.md](./server/README.md)
-
-Pokémon Showdown simulates singles, doubles and triples battles in all the games out so far (Generations 1 through 9).
-
-
-Documentation quick links
+Generating config
 ------------------------------------------------------------------------
 
-* [PROTOCOL.md][4] - How the client and server communicate with each other.
-* [sim/SIM-PROTOCOL.md][5] - The part of the protocol used for battles and battle messages.
-* [CONTRIBUTING.md][6] - Useful code standards to understand if you want to send pull requests to PS (not necessary if you're just using the code and not planning to contribute back).
-* [ARCHITECTURE.md][7] - A high-level overview of how the code works.
-* [Bot FAQ][8] - An FAQ compiled by Kaiepi regarding making Pokemon Showdown bots - mainly chatbots and battle bots.
+Both generated files are written inside the submodule (upstream ignores
+`config/config.js`, and `routes.json` is per deployment). Run it from this
+branch root:
 
-  [4]: ./PROTOCOL.md
-  [5]: ./sim/SIM-PROTOCOL.md
-  [6]: ./CONTRIBUTING.md
-  [7]: ./ARCHITECTURE.md
-  [8]: https://gist.github.com/Kaiepi/becc5d0ecd576f5e7733b57b4e3fa97e
+    SITE_HOST=stupidshowdown.netlify.app \
+    GAME_HOST=stupidshowdown-xxxx.run.app \
+    node setup-config.js
 
+- `SITE_HOST` — where this client is served from. The build rewrites asset URLs
+  against it (`routes.json` `root`), so it must match the hostname players
+  actually load.
+- `GAME_HOST` — the game server the browser connects to (written into
+  `Config.defaultserver`). `GAME_PORT` defaults to 443.
 
-Community
+`config/config.js` deliberately starts from the submodule's `config-example.js`:
+writing one from scratch drops properties the client reads on startup
+(`Config.customcolors` among them), which aborts `new App()` before the client
+can connect at all.
+
+Building
 ------------------------------------------------------------------------
 
-PS has a built-in chat service. Join our main server to talk to us!
+Roughly what a Netlify build has to do once it's wired up:
 
-You can also visit the [Pokémon Showdown forums][9] for discussion and help.
+1. check out this branch with submodules, then `npm ci` inside
+   `StupidShowdownClient/`;
+2. overlay `client-patches/` onto the submodule — `build-tools/` and `src/`
+   over their counterparts, `sprites/` and `audio/` into
+   `play.pokemonshowdown.com/`;
+3. give the patched build tools the game server's data: they read it from
+   `dist/` at this branch root, with `caches/pokemon-showdown` pointing at a
+   server checkout (that's what the old deployment symlinked in);
+4. run `setup-config.js`, then `node build full` inside the submodule, and
+   serve `StupidShowdownClient/play.pokemonshowdown.com/` as static files.
 
-  [9]: https://www.smogon.com/forums/forums/pok%C3%A9mon-showdown.209/
-
-If you'd like to contribute to programming and don't know where to start, feel free to check out [Ideas for New Developers][10].
-
-  [10]: https://github.com/smogon/pokemon-showdown/issues/2444
-
-
-License
-------------------------------------------------------------------------
-
-Pokémon Showdown's server is distributed under the terms of the [MIT License][11].
-
-  [11]: ./LICENSE
-
-
-Credits
-------------------------------------------------------------------------
-
-Owner
-
-- Guangcong Luo [Zarel] - Development, Design, Sysadmin
-
-Staff
-
-- Andrew Werner [HoeenHero] - Development
-- Annika L. [Annika] - Development
-- Chris Monsanto [chaos] - Development, Sysadmin
-- Kris Johnson [dhelmise] - Development
-- Leonard Craft III [DaWoblefet] - Research (game mechanics)
-- Mathieu Dias-Martins [Marty-D] - Research (game mechanics), Development
-- Mia A [Mia] - Development
-
-Contributors
-
-- See http://pokemonshowdown.com/credits
+License note: the client (including the submodule) is AGPL-3.0; the game server
+is MIT.

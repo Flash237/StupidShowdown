@@ -1,8 +1,18 @@
 # Custom-mon sprite art
 
 Real art for this fork's custom roster, plus the two custom item icons. Drop a
-file in and `serve_client.js` serves it; no rename, resize, convert, or client
-change needed.
+file in, publish it at the `<id>.png` URL the client asks for, and it's live.
+
+**Serving these on a static host:** the old Render deployment ran a custom proxy
+(`serve_client.js`, removed with the rest of the Render setup) that looked files
+up by filename *stem* and answered any request with the real file and the
+`Content-Type` matching its real extension. A plain static host can't do that —
+it maps a request straight onto a file, and the client always asks for `.png`
+URLs, so `custom/furina.webp` would 404 as `custom/furina.png`. The build has to
+bridge that gap: either convert non-`.png` art to real PNGs, or publish rewrites
+from `<id>.png` to the real file, which keeps the `Content-Type` correct. (Don't
+just rename WebP bytes to `.png`: browsers silently drop a `background-image`
+whose type doesn't match, and that's how these files are drawn.)
 
 **Why this directory instead of the client itself:** the client is a git
 submodule pinned to smogon/pokemon-showdown-client, and its own `.gitignore`
@@ -21,14 +31,11 @@ itemicons/<itemid>.<ext>         held-item icon
 ```
 
 `<ext>` is whatever the file actually is (`.png`, `.webp`, `.jpeg`, `.avif`).
-Extensions are deliberately **not** normalized: the client asks for `.png` URLs,
-but `serve_client.js` indexes these directories by filename stem and answers any
-sprite request with the real file and the `Content-Type` that matches its real
-extension. That matters because these are rendered as CSS `background-image`s,
-and a WebP file served as `image/png` is silently dropped.
+Extensions are deliberately **not** normalized here, so the artist's file stays
+the source of truth; naming them to the URLs below is the build's job.
 
-Because the lookup is by id and ignores directory, one file answers every path
-the client might ask for:
+Ids are looked up per directory, and one file answers every path the client
+might ask for:
 
 | Client URL | This directory | Used for |
 |---|---|---|
@@ -84,8 +91,9 @@ named by species id: `icons/nahida.webp`, `icons/demoman.jpg`,
 these in the icon slot for roster species instead of the shared
 `pokemonicons-sheet.png` (whose cells are indexed by dex number and clamp
 anything above 1025 back to placeholder 0). Like `custom/`, the extension on
-disk is the artist's real one and `serve_client.js` answers with the matching
-Content-Type; the client always asks for `<id>.png`.
+disk is the artist's real one and the client asks for `<id>.png` — so these need
+the same build-time publishing described above (an `.svg` icon in particular
+should be converted, since a rewrite can't change its type).
 
 Covered: aws, azure, cactus, dante, demoman, dracannon, flexseal, ghidorah,
 ghidorah-void, godzilla, godzilla-earth, grian, hatsunemiku, hitachint65ma4,

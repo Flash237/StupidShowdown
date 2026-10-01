@@ -1,13 +1,12 @@
 # Custom-mon cries
 
-Optional. Copied into the client image at build time alongside
-`client-patches/sprites/` (see the root `Dockerfile`). Keep at least one file in
-this directory so the `COPY` step has a source.
+Optional. Copied into the client alongside `client-patches/sprites/` at build
+time. Keep at least one file in this directory so the copy step has a source.
 
 Expected path per cry:
 
 ```
-client-patches/audio/cries/<spriteid>.mp3   ->   /audio/cries/<id>.mp3
+client-patches/audio/cries/<id>.mp3   ->   /audio/cries/<id>.mp3
 ```
 
 The client only requests a cry when it has size data for the species, i.e. once
@@ -15,6 +14,8 @@ The client only requests a cry when it has size data for the species, i.e. once
 animated sprites exist in `client-patches/sprites/ani/`. So add these last; until
 then the cry is never requested, rather than requested and 404ing.
 
-Any missing cry falls through to the upstream proxy (`serve_client.js`), which
-404s for custom species. A failed cry is silent — the battle just has no sound
-for that Pokémon.
+Missing cries just 404 and the battle is silent for that Pokémon.
+
+Note the old Render deployment served these through a custom proxy
+(`serve_client.js`) that fell back to upstream for unknown files; that proxy is
+gone, so a static host answers these straight out of the client tree.

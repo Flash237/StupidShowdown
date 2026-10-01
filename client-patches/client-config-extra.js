@@ -1,9 +1,9 @@
 /* global window, document */
 // StupidShowdown client patch, appended to the generated
-// StupidShowdownClient/config/config.js at image build time (see the Dockerfile).
+// StupidShowdownClient/config/config.js by setup-config.js (see README.md).
 //
 // Why it lives there: config.js is loaded as a plain <script> by every page of
-// the client and is ours to edit (the Dockerfile generates it). It runs well
+// the client and is ours to edit (setup-config.js generates it). It runs well
 // before battledata.js defines Dex, so everything below defers to
 // DOMContentLoaded.
 //
@@ -35,8 +35,9 @@
 	// Species art for the icon slot, split by what the asset pack actually
 	// contains:
 	//  - CUSTOM_MON_ICONS: ids with dedicated icon art (head shots/logos),
-	//    served from sprites/pokemonicons/<id>.png (whatever the file's real
-	//    extension is - serve_client.js answers with the right Content-Type).
+	//    served from sprites/pokemonicons/<id>.png (in the repo the file keeps
+	//    its real extension; the build has to publish it at that .png URL - see
+	//    client-patches/sprites/README.md).
 	//  - ids with no icon art in the pack (navia, furina, zhongli,
 	//    raidenshogun): fall back to their battle render, consistent with what
 	//    their battle sprites show (MissingNo. placeholder).
