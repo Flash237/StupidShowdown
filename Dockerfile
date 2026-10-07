@@ -1,4 +1,5 @@
 # Multi-stage Dockerfile for Render deployment
+
 FROM node:22-slim AS builder
 
 WORKDIR /app
@@ -14,6 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 # Copy root package files and install server dependencies
 COPY package*.json ./
 RUN npm ci
+
+# Populate the client submodule so later COPY steps can see its files.
+RUN git submodule update --init StupidShowdownClient
 
 # Copy client package files and install client dependencies
 # (StupidShowdownClient is already synced by Render via git submodules)
