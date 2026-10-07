@@ -16,11 +16,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 COPY package*.json ./
 RUN npm ci
 
-# Populate the client submodule so later COPY steps can see its files.
-RUN git submodule update --init StupidShowdownClient
+# The client tree must already be present in the build context.
+# This Dockerfile is not responsible for populating StupidShowdownClient via
+# git submodules - the source provider (for example a CI job or a host that
+# syncs submodules for us) must do that before Docker sees the source tree.
+RUN test -f StupidShowdownClient/package.json || (echo 'StupidShowdownClient/package.json not found in build context' && exit 1)
 
 # Copy client package files and install client dependencies
-# (StupidShowdownClient is already synced by Render via git submodules)
 COPY StupidShowdownClient/package*.json ./StupidShowdownClient/
 RUN cd StupidShowdownClient && npm ci
 
