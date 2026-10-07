@@ -16,34 +16,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 COPY package*.json ./
 RUN npm ci
 
-# Populate the client tree from the upstream client release tarball.
-# This Dockerfile intentionally does not rely on git submodules or a .git
-# directory in the build context. Instead it downloads a pinned upstream
-# client source archive and then overlays this repo's client patches on top.
-#
-# Pin the upstream client version here. This example pins smogon/pokemon-showdown-client v3.0.0.
-ARG CLIENT_VERSION=v3.0.0
-RUN apt-get update && apt-get install -y --no-install-recommends wget && \
-	for i in 1 2 3 4 5; do \
-		if wget -q --tries=2 -O /tmp/client.tar.gz \
-			"https://github.com/smogon/pokemon-showdown-client/archive/${CLIENT_VERSION}.tar.gz"; then \
-			break; \
-		fi; \
-	done && \
-	if [ ! -s /tmp/client.tar.gz ]; then \
-		echo "Failed to download client tarball for ${CLIENT_VERSION}" >&2; \
-		apt-get purge -y --auto-remove wget && rm -rf /var/lib/apt/lists/*; \
-		exit 1; \
-	fi && \
-	mkdir -p StupidShowdownClient && \
-	tar -xzf /tmp/client.tar.gz -C StupidShowdownClient --strip-components=1 && \
-	rm -f /tmp/client.tar.gz && \
-	apt-get purge -y --auto-remove wget && \
-	rm -rf /var/lib/apt/lists/*
+# Install client dependencies and build the upstream client.
+# The real client package lives under play.pokemonshowdown.com/ in this
+# upstream client layout, so install and build there.
+WORKDIR /app/StupidShowdownClient/play.pokemonshowdown.com
+COPY StupidShowdownClient/play.pokemonshowdown.com/package*.json ./
+RUN npm ci
 
-# Copy client package files and install client dependencies
-COPY StupidShowdownClient/package*.json ./StupidShowdownClient/
-RUN cd StupidShowdownClient && npm ci
+# Copy client source (build-tools, src overlays, sprites, audio, config)
+COPY StupidShowdownClient/play.pokemonshowdown.com/ ./
 
 # Copy full source (includes synced submodule files via build context)
 COPY . .
