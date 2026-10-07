@@ -16,28 +16,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 COPY package*.json ./
 RUN npm ci
 
-# Install client dependencies and build the upstream client.
-# The real client package lives under play.pokemonshowdown.com/ in this
-# upstream client layout, so install and build there.
-WORKDIR /app/StupidShowdownClient/play.pokemonshowdown.com
-COPY StupidShowdownClient/play.pokemonshowdown.com/package*.json ./
+# Install client dependencies.
+# The client's package.json lives at the top-level of StupidShowdownClient/,
+# and the build script (node build) also runs from there.
+WORKDIR /app/StupidShowdownClient
+COPY StupidShowdownClient/package*.json ./
 RUN npm ci
 
-# Copy client source (build-tools, src overlays, sprites, audio, config)
-COPY StupidShowdownClient/play.pokemonshowdown.com/ ./
+# Copy client source files (play.pokemonshowdown.com/ tree, build-tools, config, etc.)
+COPY StupidShowdownClient/ ./
 
-# Copy full source (includes synced submodule files via build context)
+# Copy full source (includes server files and client-patches)
 COPY . .
 
 # Overlay our patched client build tools (they read from our own server
 # dist/ instead of git-cloning upstream smogon/pokemon-showdown, which
 # is what makes our custom Pokemon/moves/formats show up in the client).
-# Copying after `COPY . .` so this wins over Render's synced submodule copy.
-COPY client-patches/build-tools/ ./StupidShowdownClient/build-tools/
-# Overlay our patched client sources too (see client-patches/src) - the submodule
-# is pinned to upstream smogon/pokemon-showdown-client, so source edits live here
-# and win over Render's synced submodule copy.
-COPY client-patches/src/ ./StupidShowdownClient/play.pokemonshowdown.com/src/
+# Copying after `COPY . .` so this wins over the base client copy.
+COPY client-patches/build-tools/ ./build-tools/
+# Overlay our patched client sources too (see client-patches/src) - the base
+# client is upstream smogon/pokemon-showdown-client, so source edits live here
+# and win over the base copy.
+COPY client-patches/src/ ./play.pokemonshowdown.com/src/
 
 # Write production client config — start from the shipped example so every
 # property the client expects (Config.customcolors, Config.whitelist,
@@ -52,7 +52,7 @@ COPY client-patches/src/ ./StupidShowdownClient/play.pokemonshowdown.com/src/
 # The host below is this repo's *public* Render service (see render.yaml) - the
 # browser connects to that service, which tunnels /showdown to the separate game
 # service. It is not the game service's own hostname.
-RUN cp StupidShowdownClient/config/config-example.js StupidShowdownClient/config/config.js && \
+RUN cp config/config-example.js config/config.js && \
     printf '%s\n' \
     '' \
     '// StupidShowdown: talk to our own game server, not the official one.' \
@@ -64,8 +64,8 @@ RUN cp StupidShowdownClient/config/config-example.js StupidShowdownClient/config
     '  altport: 80,' \
     '  registered: true' \
     '};' \
-    >> StupidShowdownClient/config/config.js && \
-    cat client-patches/client-config-extra.js >> StupidShowdownClient/config/config.js
+    >> config/config.js && \
+    cat client-patches/client-config-extra.js >> config/config.js
 
 # Override routes so asset URLs are rewritten to our own domain (not
 # play.pokemonshowdown.com). `root` must stay in sync with the public service
@@ -80,7 +80,7 @@ RUN printf '%s\n' \
     '  "users": "pokemonshowdown.com/users",' \
     '  "teams": "teams.pokemonshowdown.com"' \
     '}' \
-    > StupidShowdownClient/config/routes.json
+    > config/routes.json
 
 # Overlay custom-mon art into the client tree, alongside the audio below.
 # serve_client.js answers sprite requests out of client-patches/sprites/ directly,
@@ -91,8 +91,8 @@ RUN printf '%s\n' \
 # Each directory must exist in git (they hold a README), because COPY fails on
 # a missing source. The sprites/ dir carries custom/ (battle renders),
 # icons/ (party-bar/list icon art) and itemicons/ (custom item art).
-COPY client-patches/sprites/ ./StupidShowdownClient/play.pokemonshowdown.com/sprites/
-COPY client-patches/audio/ ./StupidShowdownClient/play.pokemonshowdown.com/audio/
+COPY client-patches/sprites/ ./play.pokemonshowdown.com/sprites/
+COPY client-patches/audio/ ./play.pokemonshowdown.com/audio/
 
 # build-tools/update compiles the server's chat-formatter.ts - which defines
 # the global formatText() that battle-log's parseMessage calls - out of
@@ -101,11 +101,12 @@ COPY client-patches/audio/ ./StupidShowdownClient/play.pokemonshowdown.com/audio
 # the compile silently produced no formatText: every chat/PM/popup render
 # threw "formatText is not defined". This repo IS the server repo, so link it
 # instead of cloning (also picks up this fork's own server sources).
-RUN ln -s ../.. StupidShowdownClient/caches/pokemon-showdown
+RUN ln -s ../.. caches/pokemon-showdown
 
 # Build server TypeScript first (client full build reads from dist/sim/dex)
 RUN npm run build
 # 'full' generates all data/*.js files (pokedex, abilities, moves, etc.) from server data
+# and runs the client build (indexers, learnsets, minidex, commands, update)
 RUN cd StupidShowdownClient && node build full
 
 # Production image
