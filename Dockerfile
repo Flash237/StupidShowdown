@@ -16,11 +16,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 COPY package*.json ./
 RUN npm ci
 
-# The client tree must already be present in the build context.
-# This Dockerfile is not responsible for populating StupidShowdownClient via
-# git submodules - the source provider (for example a CI job or a host that
-# syncs submodules for us) must do that before Docker sees the source tree.
-RUN test -f StupidShowdownClient/package.json || (echo 'StupidShowdownClient/package.json not found in build context' && exit 1)
+# Populate the client tree from the upstream client release tarball.
+# This Dockerfile intentionally does not rely on git submodules or a .git
+# directory in the build context. Instead it downloads a pinned upstream
+# client source archive and then overlays this repo's client patches on top.
+#
+# Pin the upstream client version here. This example pins smogon/pokemon-showdown-client v3.0.0.
+ARG CLIENT_VERSION=v3.0.0
+RUN wget -qO /tmp/client.tar.gz \
+	"https://github.com/smogon/pokemon-showdown-client/archive/${CLIENT_VERSION}.tar.gz" \
+&& mkdir -p StupidShowdownClient \
+&& tar -xzf /tmp/client.tar.gz -C StupidShowdownClient --strip-components=1 \
+&& rm /tmp/client.tar.gz
 
 # Copy client package files and install client dependencies
 COPY StupidShowdownClient/package*.json ./StupidShowdownClient/
