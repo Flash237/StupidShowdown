@@ -23,8 +23,7 @@ RUN npm ci
 #
 # Pin the upstream client version here. This example pins smogon/pokemon-showdown-client v3.0.0.
 ARG CLIENT_VERSION=v3.0.0
-RUN wget -qO /tmp/client.tar.gz \
-	"https://github.com/smogon/pokemon-showdown-client/archive/${CLIENT_VERSION}.tar.gz" \
+RUN curl -fsSL "https://github.com/smogon/pokemon-showdown-client/archive/${CLIENT_VERSION}.tar.gz" -o /tmp/client.tar.gz \
 && mkdir -p StupidShowdownClient \
 && tar -xzf /tmp/client.tar.gz -C StupidShowdownClient --strip-components=1 \
 && rm /tmp/client.tar.gz
