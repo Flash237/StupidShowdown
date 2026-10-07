@@ -24,8 +24,17 @@ RUN npm ci
 # Pin the upstream client version here. This example pins smogon/pokemon-showdown-client v3.0.0.
 ARG CLIENT_VERSION=v3.0.0
 RUN apt-get update && apt-get install -y --no-install-recommends wget && \
-	wget -qO /tmp/client.tar.gz \
-		"https://github.com/smogon/pokemon-showdown-client/archive/${CLIENT_VERSION}.tar.gz" && \
+	for i in 1 2 3 4 5; do \
+		if wget -q --tries=2 -O /tmp/client.tar.gz \
+			"https://github.com/smogon/pokemon-showdown-client/archive/${CLIENT_VERSION}.tar.gz"; then \
+			break; \
+		fi; \
+	done && \
+	if [ ! -s /tmp/client.tar.gz ]; then \
+		echo "Failed to download client tarball for ${CLIENT_VERSION}" >&2; \
+		apt-get purge -y --auto-remove wget && rm -rf /var/lib/apt/lists/*; \
+		exit 1; \
+	fi && \
 	mkdir -p StupidShowdownClient && \
 	tar -xzf /tmp/client.tar.gz -C StupidShowdownClient --strip-components=1 && \
 	rm -f /tmp/client.tar.gz && \
