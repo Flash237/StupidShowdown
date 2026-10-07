@@ -23,10 +23,14 @@ RUN npm ci
 #
 # Pin the upstream client version here. This example pins smogon/pokemon-showdown-client v3.0.0.
 ARG CLIENT_VERSION=v3.0.0
-RUN curl -fsSL "https://github.com/smogon/pokemon-showdown-client/archive/${CLIENT_VERSION}.tar.gz" -o /tmp/client.tar.gz \
-&& mkdir -p StupidShowdownClient \
-&& tar -xzf /tmp/client.tar.gz -C StupidShowdownClient --strip-components=1 \
-&& rm /tmp/client.tar.gz
+RUN apt-get update && apt-get install -y --no-install-recommends wget && \
+	wget -qO /tmp/client.tar.gz \
+		"https://github.com/smogon/pokemon-showdown-client/archive/${CLIENT_VERSION}.tar.gz" && \
+	mkdir -p StupidShowdownClient && \
+	tar -xzf /tmp/client.tar.gz -C StupidShowdownClient --strip-components=1 && \
+	rm -f /tmp/client.tar.gz && \
+	apt-get purge -y --auto-remove wget && \
+	rm -rf /var/lib/apt/lists/*
 
 # Copy client package files and install client dependencies
 COPY StupidShowdownClient/package*.json ./StupidShowdownClient/
